@@ -2,7 +2,7 @@
 BBDB schema
 """
 
-import sqlalchemy as sql
+from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -23,7 +23,7 @@ class Person(Base):
 
   __tablename__ = 'people'
 
-  id = sql.Column(sql.Integer, primary_key=True)
+  id = Column(Integer, primary_key=True)
 
 
 class Persona(Base):
@@ -37,7 +37,7 @@ class Persona(Base):
 
   __tablename__ = 'personas'
 
-  id = sql.Column(sql.Integer, primary_key=True)
+  id = Column(Integer, primary_key=True)
 
 
 class Name(Base):
@@ -47,8 +47,8 @@ class Name(Base):
 
   __tablename__ = 'names'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  name = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  name = Column(String, nullable=False)
   persona = relationship("Persona", back_populates="names")
 
 
@@ -59,8 +59,8 @@ class TwitterHandle(Base):
 
   __tablename__ = 'twitters'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  handle = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey('personas.id'))
   persona = relationship("Persona", back_populates="twitter_accounts")
 
@@ -72,8 +72,8 @@ class EmailHandle(Base):
 
   __tablename__ = 'emails'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  handle = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey('personas.id'))
   persona = relationship("Persona", back_populates="email_accounts")
 
@@ -85,8 +85,8 @@ class GithubHandle(Base):
 
   __tablename__ = 'githubs'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  handle = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey('personas.id'))
   persona = relationship("Persona", back_populates="github_accounts")
 
@@ -100,8 +100,8 @@ class KeybaseHandle(Base):
 
   __tablename__ = 'keybases'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  handle = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey('personas.id'))
   persona = relationship("Persona", back_populates="keybase_accounts")
 
@@ -113,7 +113,8 @@ class Website(Base):
 
   __tablename__ = 'websities'
 
-  id = sql.Column(sql.Integer, primary_key=True)
-  handle = sql.Column(String, nullable=False)
+  id = Column(Integer, primary_key=True)
+  handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey('personas.id'))
   persona = relationship("Persona", back_populates="websites")
+1

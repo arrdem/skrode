@@ -10,5 +10,7 @@ setup(
     dependencies=[
       'six==1.10.0',
       'sqlalchemy==1.1.12',
+      'requests==2.18.2',
+      'beautifulsoup4==4.6.0',
     ]
 )
