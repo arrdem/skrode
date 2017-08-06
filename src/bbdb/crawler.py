@@ -35,9 +35,9 @@ def crawl_keybase(session, persona, url=None, handle=None):
 
   results = {}
 
-  user_attr_items = soup.find_all(**{'class': "it-item"})
-  user_name = soup.find(**{"class": "full-name"}).text.strip()
-  user_handle = soup.find(**{"class": "username"}).text.strip()
+  user_attr_items = soup.find_all(class_="it-item")
+  user_name = soup.find(class_="full-name").text.strip()
+  user_handle = soup.find(class_="username").text.strip()
 
   session.insert(schema.Name(name=user_name, persona=persona))
   session.insert(schema.Name(name=user_handle, persona=persona))
@@ -48,19 +48,22 @@ def crawl_persona(session, handles):
   """
 
 
-def main(args):
-  """
-  Actually boot the schema and the database.
-  """
-
-  engine = create_engine('sqlite:///bbdb.sqlite3')
+def make_session_factory(db_uri='sqlite:///bbdb.sqlite3'):
+  engine = create_engine(db_uri)
 
   # Note this _is_ reloading safe
   schema.Base.metadata.create_all(engine)
 
   # Start a session to the database
   session_factory = sessionmaker(bind=engine)
-  session = session_factory()
+  return session_factory
+
+  
+def main(args):
+  """
+  Actually boot the schema and the database.
+  """
+
 
   
 
