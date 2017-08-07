@@ -2,11 +2,11 @@
 Basic tests that the schema works literally at all
 """
 
-from bbdb import crawler, schema
+from bbdb import make_session_factory, schema
 
 import pytest
 
-session_factory = crawler.make_session_factory("sqlite:///:memory:")
+session_factory = make_session_factory("sqlite:///:memory:")
 
 
 @pytest.fixture

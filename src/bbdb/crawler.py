@@ -4,15 +4,11 @@ A simple crawler, designed to check several services for data about a specific h
 
 from argparse import ArgumentParser
 
+from bbdb.names import insert_name
 from bbdb import schema
 
 import requests
 from bs4 import BeautifulSoup
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-
-parser = ArgumentParser(__doc__)
 
 
 def get_soup(url):
@@ -20,7 +16,7 @@ def get_soup(url):
   Get the soup for a given URL.
   """
 
-  return BeautifulSoup(requests.get(url).text)
+  return BeautifulSoup(requests.get(url).text, "html.parser")
 
 
 def crawl_keybase(session, persona, url=None, handle=None):
@@ -29,45 +25,26 @@ def crawl_keybase(session, persona, url=None, handle=None):
   """
 
   if handle:
-    url = "http://keybase.io/%s" % handle,
+    url = "http://keybase.io/%s" % (handle,)
 
-  soup = get_soup(url)
+  if url:
+    print(url)
+    soup = get_soup(url)
 
-  results = {}
+    results = {}
 
-  user_attr_items = soup.find_all(class_="it-item")
-  user_name = soup.find(class_="full-name").text.strip()
-  user_handle = soup.find(class_="username").text.strip()
+    user_attr_items = soup.find_all(class_="it-item")
+    user_name = soup.find(class_="full-name").text.strip()
+    user_handle = soup.find(class_="username").text.strip()
 
-  session.insert(schema.Name(name=user_name, persona=persona))
-  session.insert(schema.Name(name=user_handle, persona=persona))
+    insert_name(session, persona, user_name)
+    insert_name(session, persona, user_handle)
+    schema.get_or_create(session, schema.KeybaseHandle, handle=url.split("/")[-1], persona=persona)
+    session.commit()
 
-
-def crawl_persona(session, handles):
-  """
-  """
-
-
-def make_session_factory(db_uri='sqlite:///bbdb.sqlite3'):
-  engine = create_engine(db_uri)
-
-  # Note this _is_ reloading safe
-  schema.Base.metadata.create_all(engine)
-
-  # Start a session to the database
-  session_factory = sessionmaker(bind=engine)
-  return session_factory
-
-  
-def main(args):
-  """
-  Actually boot the schema and the database.
-  """
-
-
-  
-
-
-if __name__ == '__main__':
-  args = parser.parse_args()
-  main(args)
+  else:
+    for twitter in persona.twitter_accounts:
+      try:
+        crawl_keybase(session, persona, handle=name.name)
+      except:
+        pass
