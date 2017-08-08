@@ -10,6 +10,10 @@ def merge_left(session, l, r):
   Merge the right profile into the left profile, destroying the right. 
   """
 
+  if l.id == r.id:
+    # We're merging a record onto itself
+    return
+
   for name in r.names:
     names.insert_name(session, l, name.name)
     session.delete(name)
@@ -29,6 +33,18 @@ def merge_left(session, l, r):
   for keybase_account in r.keybase_accounts:
     keybase_account.persona = l
     session.add(keybase_account)
+
+  for reddit_account in r.reddit_accounts:
+    reddit_account.persona = l
+    session.add(reddit_account)
+
+  for lobsters_account in r.lobsters_accounts:
+    lobsters_account.persona = l
+    session.add(lobsters_account)
+
+  for hn_account in r.hn_accounts:
+    hn_account.persona = l
+    session.add(l)
 
   for website in r.websites:
     website.persona = l

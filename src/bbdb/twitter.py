@@ -9,14 +9,19 @@ from bbdb.schema import (Persona, TwitterDisplayName, TwitterHandle,
                          TwitterScreenName, get_or_create)
 
 
-def api_for_config(config):
-  return twitter.Api(
+def api_for_config(config, **kwargs):
+  _api = twitter.Api(
     consumer_key=config.twitter_api_key,
     consumer_secret=config.twitter_api_secret,
     access_token_key=config.twitter_access_token,
     access_token_secret=config.twitter_access_secret,
+    cache=twitter._FileCache(config.twitter_cache_dir),
+    **kwargs
   )
 
+  _api.SetCacheTimeout(config.twitter_cache_timeout)
+  
+  return _api
 
 def insert_handle(session, user: twitter.User):
   """Insert a Twitter Handle, creating a Persona for it if there isn't one."""
@@ -37,7 +42,7 @@ def insert_screen_name(session, user: twitter.User):
   """Insert a screen name, attaching it to a handle."""
 
   handle = get_or_create(session, TwitterHandle, id=user.id)
-  screen_name = get_or_create(session, TwitterScreenName, name=user.screen_name, account=handle)
+  screen_name = get_or_create(session, TwitterScreenName, handle=user.screen_name, account=handle)
   insert_name(session, handle.persona, user.screen_name)
 
   return screen_name
@@ -47,7 +52,7 @@ def insert_display_name(session, user: twitter.User):
   """Insert a display name, attaching it to a handle."""
 
   handle = get_or_create(session, TwitterHandle, id=user.id)
-  display_name = get_or_create(session, TwitterDisplayName, name=user.name, account=handle)
+  display_name = get_or_create(session, TwitterDisplayName, handle=user.name, account=handle)
   insert_name(session, handle.persona, user.name)
 
   return display_name
@@ -72,7 +77,7 @@ def insert_user(session, user):
 def handle_for_screenname(session, screenname):
   return session.query(TwitterHandle)\
              .join(TwitterScreenName)\
-             .filter(TwitterScreenName.name == screenname)\
+             .filter(TwitterScreenName.handle == screenname)\
              .group_by(TwitterHandle)\
              .first()
 
@@ -82,4 +87,4 @@ def user_from_handle(api: twitter.Api, handle: TwitterHandle):
   Map a database TwitterHandle to an API User structure.
   """
 
-  return api.User(user_id=handle.id)
+  return twitter.User(user_id=handle.id)

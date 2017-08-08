@@ -3,8 +3,9 @@ BBDB schema
 """
 
 from sqlalchemy import Column, ForeignKey, Integer, String
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy_utils.types.arrow import ArrowType
 
 
 Base = declarative_base()
@@ -102,14 +103,14 @@ class TwitterHandle(Base):
   persona = relationship("Persona", back_populates="twitter_accounts")
   display_names = relationship("TwitterDisplayName")
   screen_names = relationship("TwitterScreenName")
-
+ 
   @property
   def screen_name(self):
-    return self.screen_names[-1]
+    return self.screen_names[-1].handle
 
   @property
   def display_name(self):
-    return self.display_names[-1]
+    return self.display_names[-1].handle
 
   def __repr__(self):
     return "<TwitterHandle %r \"@%s\">" % (self.id, self.screen_name)
@@ -127,12 +128,13 @@ class TwitterDisplayName(Base):
   __tablename__ = "twitter_display_names"
 
   id = Column(Integer, primary_key=True)
-  name = Column(String, nullable=False)
+  handle = Column(String, nullable=False)
   account_id = Column(Integer, ForeignKey("twitters.id"))
   account = relationship("TwitterHandle", back_populates="display_names", single_parent=True)
+  when = Column(ArrowType)
 
   def __repr__(self):
-    return "<TwitterDisplayName %r %r>" % (self.account_id, self.name,)
+    return "<TwitterDisplayName %r %r>" % (self.account_id, self.handle,)
 
 
 class TwitterScreenName(Base):
@@ -153,9 +155,23 @@ class TwitterScreenName(Base):
   handle = Column(String, nullable=False)
   account_id = Column(Integer, ForeignKey("twitters.id"))
   account = relationship("TwitterHandle", back_populates="screen_names", single_parent=True)
-
+  when = Column(ArrowType)
+  
   def __repr__(self):
-    return "<TwitterScreenName %r %r>" % (self.account_id, self.name)
+    return "<TwitterScreenName %r %r>" % (self.account_id, self.handle)
+
+
+class TwitterFollows(Base):
+  """
+  Twitter accounts follow each-other. This table represents one user following another.
+  """
+
+  __tablename__ = "twitter_follows"
+
+  id = Column(Integer, primary_key=True)
+  follows_id = Column(Integer, ForeignKey("twitters.id"))
+  follower_id = Column(Integer, ForeignKey("twitters.id"))
+  when = Column(ArrowType)
 
 
 class EmailHandle(Base):
@@ -183,6 +199,13 @@ class GithubHandle(Base):
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="github_accounts")
 
+  @property
+  def url(self):
+    return "http://github.com/%s" % (self.handle,)
+  
+  def __repr__(self):
+    return "<GithubHandle %r>" % (self.url,)
+
 
 class KeybaseHandle(Base):
   """
@@ -198,8 +221,12 @@ class KeybaseHandle(Base):
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="keybase_accounts")
 
+  @property
+  def url(self):
+    return "http://keybase.io/%s" % (self.handle,)
+  
   def __repr__(self):
-    return "<KeybaseHandle 'http://keybase.io/%s'>" % (self.handle,)
+    return "<KeybaseHandle %r>" % (self.url,)
 
 
 class RedditHandle(Base):
@@ -216,6 +243,13 @@ class RedditHandle(Base):
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="reddit_accounts")
 
+  @property
+  def url(self):
+    return "http://reddit.com/u/%s" % (self.handle,)
+
+  def __repr__(self):
+    return "<RedditHandle %r>" % (self.url,)
+
 
 class LobstersHandle(Base):
   """
@@ -230,6 +264,13 @@ class LobstersHandle(Base):
   handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="lobsters_accounts")
+
+  @property
+  def url(self):
+    return "http://lobste.rs/u/%s" % (self.handle,)
+
+  def __repr__(self):
+    return "<LobstersHandle %r>" % (self.url,)
 
 
 class HNHandle(Base):
@@ -246,6 +287,13 @@ class HNHandle(Base):
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="hn_accounts")
 
+  @property
+  def url(self):
+    return "https://news.ycombinator.com/user?id=%s" % (self.handle,)
+
+  def __repr__(self):
+    return "<HNHandle %r>" % (self.url,)
+
 
 class Website(Base):
   """
@@ -258,6 +306,13 @@ class Website(Base):
   handle = Column(String, nullable=False)
   persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="websites")
+
+  @property
+  def url(self):
+    return self.handle
+
+  def __repr__(self):
+    return "<Website %r>" % (self.url,)
 
 
 class Suspicion(Base):
