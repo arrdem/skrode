@@ -20,7 +20,7 @@ def get_soup(url, session=None):
   """
 
   session = session or requests
-  resp = session.get(url, headers={"User-Agent": "bbdb 0.0.0"})
+  resp = session.get(url)
   if resp.status_code == 200:
     return BeautifulSoup(resp.text, "html.parser")
   else:
@@ -78,8 +78,8 @@ class Api(object):
   A Lobsters API client based on screen-scraping.
   """
 
-  def __init__(self):
-    self._session = requests.Session()
+  def __init__(self, session=None):
+    self._session = session or requests.Session()
     self._users = None
 
   @property

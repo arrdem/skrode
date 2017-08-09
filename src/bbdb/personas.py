@@ -18,7 +18,7 @@ def merge_left(session, l, r):
     names.insert_name(session, l, name.name)
     session.delete(name)
 
-  for twitter_account in r.twitter_account:
+  for twitter_account in r.twitter_accounts:
     twitter_account.persona = l
     session.add(twitter_account)
 

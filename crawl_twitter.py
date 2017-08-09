@@ -21,23 +21,39 @@ if __name__ == '__main__':
   session = factory()
 
   if len(sys.argv) == 2:
-    user_id = twitter_api.GetUser(screen_name=sys.argv[1]).id
+    user = twitter_api.GetUser(screen_name=sys.argv[1])
 
   else:
-    user_id = twitter_api.VerifyCredentials().id
+    # Get me
+    user = twitter_api.VerifyCredentials()
+
+  # Ensure the seed user is in the db
+  twitter.insert_user(session, user)
+  user_id = user.id
 
   try:
     when = arrow.utcnow()
 
-    for user in twitter_api.GetFollowers(user_id=user_id):
-      print(twitter.insert_user(session, user))
-      schema.get_or_create(session, schema.TwitterFollows,
-                           follows_id=user_id, follower_id=user.id, when=when)
+    for user_id in twitter_api.GetFollowerIDs(user_id=user_id):
+      if session.query(schema.TwitterHandle).filter_by(id=user.id).first():
+        continue
 
-    for user in twitter_api.GetFriends(user_id=user_id):
-      print(twitter.insert_user(session, user))
-      schema.get_or_create(session, schema.TwitterFollows,
-                           follower_id=user_id, follows_id=user.id, when=when)
+      else:
+        # Hydrate the one user explicitly
+        user = twitter_api.GetUser(user_id=user_id)
+        print(twitter.insert_user(session, user))
+        schema.get_or_create(session, schema.TwitterFollows,
+                             follows_id=user_id, follower_id=user.id, when=when)
+
+    for user_id in twitter_api.GetFriendIDs(user_id=user_id):
+      if session.query(schema.TwitterHandle).filter_by(id=user.id).first():
+        continue
+
+      else:
+        user = twitter_api.GetUser(user_id=user_id)
+        print(twitter.insert_user(session, user))
+        schema.get_or_create(session, schema.TwitterFollows,
+                             follower_id=user_id, follows_id=user.id, when=when)
 
   finally:
     session.flush()

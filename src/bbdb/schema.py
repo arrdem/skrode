@@ -3,6 +3,7 @@ BBDB schema
 """
 
 from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy.types import BigInteger
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy_utils.types.arrow import ArrowType
