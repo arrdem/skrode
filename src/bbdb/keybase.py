@@ -34,9 +34,15 @@ def link_keybases(session, kb=None):
   kb = kb or Api()
 
   for screenname in session.query(schema.TwitterScreenName).all():
-    persona = screenname.persona
+    account = screenname.account
+    persona = account.persona
+
+    if persona.keybase_accounts:
+      print("Skipping handle %s already linked to %s" % (screenname.handle, persona.keybase_accounts))
+      continue
+    
     try:
-      name = screenname.name
+      name = screenname.handle
       print("Trying twitter handle", name)
       kb_user = kb.get_users(twitter=name, one=True)
       print("Got keybase user", kb_user.username, kb_user.id)
