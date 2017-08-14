@@ -12,5 +12,8 @@ setup(
       'sqlalchemy==1.1.12',
       'requests==2.18.2',
       'beautifulsoup4==4.6.0',
+      'phonenumbers==8.7.1',
+      'python-twitter==1.7.1',
+      'arrow=0.10.0',
     ]
 )

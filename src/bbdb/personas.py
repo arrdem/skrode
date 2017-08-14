@@ -2,8 +2,39 @@
 Helpers for working with (merging/splitting) personas.
 """
 
-from bbdb import names
-from bbdb.schema import Person
+from bbdb import schema
+from bbdb.schema import get_or_create
+from bbdb.twitter import insert_user
+
+from sqlalchemy import func
+from sqlalchemy import or_
+
+from phonenumbers import format_number as format_phonenumber, parse as parse_phonenumber, PhoneNumberFormat
+
+
+def insert_name(session, persona, name):
+  return get_or_create(session, schema.Name, name=name, persona=persona)
+
+
+def insert_phone_number(session, persona, number):
+  _number = format_phonenumber(parse_phonenumber(number), PhoneNumberFormat.RFC3966)
+  _number = schema.PhoneNumber(handle=_number, persona=persona)
+  session.add(_number)
+  session.commit()
+  return _number
+
+
+def personas_by_name(session, name, one=False):
+  q = session.query(schema.Persona)\
+                .join(schema.Persona.names)\
+                .filter(schema.Name.name.contains(name))\
+                .order_by(func.length(schema.Name.name))\
+                .distinct()
+  if one:
+    return q.first()
+  else:
+    return q.all()
+
 
 def merge_left(session, l, r):
   """
@@ -15,7 +46,7 @@ def merge_left(session, l, r):
     return
 
   for name in r.names:
-    names.insert_name(session, l, name.name)
+    insert_name(session, l, name.name)
     session.delete(name)
 
   for twitter_account in r.twitter_accounts:
@@ -64,7 +95,7 @@ def link_personas_by_owner(session, *ps):
     if person:
       break
 
-  person = person or Person()
+  person = person or schema.Person()
   session.add(person)
 
   for p in ps:
@@ -72,3 +103,37 @@ def link_personas_by_owner(session, *ps):
     session.add(p)
 
   session.commit()
+
+
+def create_persona(session, twitter_api,
+                   names=None, links=None, emails=None, phones=None, twitter_handles=None):
+  persona = schema.Persona()
+  session.add(persona)
+  if names:
+    for name in names:
+      get_or_create(session, schema.Name, name=name, persona=persona)
+
+  if links:
+    for link in links:
+      get_or_create(session, schema.Website, handle=link, persona=persona)
+
+  if emails:
+    for email in emails:
+      get_or_create(session, schema.EmailHandle, handle=email, persona=persona)
+
+  if phones:
+    for phone in phones:
+      insert_phone_number(session, persona, phone)
+
+  if twitter_handles and twitter_api:
+    for handle in twitter_handles:
+      user = twitter_api.GetUser(screen_name=handle)
+      handle = session.query(schema.TwitterHandle).filter_by(id=user.id).first()
+      if handle:
+        merge_left(session, persona, handle.persona)
+      else:
+        insert_user(session, user, persona)
+
+  session.commit()
+
+  return persona

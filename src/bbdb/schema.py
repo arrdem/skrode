@@ -2,11 +2,11 @@
 BBDB schema
 """
 
-from sqlalchemy import Column, ForeignKey, Integer, String
+from sqlalchemy import Column, ForeignKey, Integer, String, Unicode
 from sqlalchemy.types import BigInteger
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import relationship, backref, composite
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy_utils.types.arrow import ArrowType
+from sqlalchemy_utils import ArrowType
 
 
 Base = declarative_base()
@@ -25,7 +25,7 @@ class Person(Base):
 
   __tablename__ = "people"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True)
   memberships = relationship("Member")
   suspicions = relationship("Suspicion")
   personas = relationship("Persona")
@@ -48,7 +48,7 @@ class Persona(Base):
 
   __tablename__ = "personas"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   names = relationship("Name", back_populates="persona")
   twitter_accounts = relationship("TwitterHandle", back_populates="persona")
   email_accounts = relationship("EmailHandle", back_populates="persona")
@@ -57,8 +57,8 @@ class Persona(Base):
   reddit_accounts = relationship("RedditHandle", back_populates="persona")
   lobsters_accounts = relationship("LobstersHandle", back_populates="persona")
   hn_accounts = relationship("HNHandle", back_populates="persona")
-
   websites = relationship("Website", back_populates="persona")
+  phone_numbers = relationship("PhoneNumber", back_populates="persona")
 
   suspicions = relationship("Suspicion")
   members = relationship("Member")
@@ -80,7 +80,7 @@ class Name(Base):
 
   __tablename__ = "names"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   name = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="names")
@@ -104,7 +104,7 @@ class TwitterHandle(Base):
   persona = relationship("Persona", back_populates="twitter_accounts")
   display_names = relationship("TwitterDisplayName")
   screen_names = relationship("TwitterScreenName")
- 
+
   @property
   def screen_name(self):
     return self.screen_names[-1].handle
@@ -128,7 +128,7 @@ class TwitterDisplayName(Base):
 
   __tablename__ = "twitter_display_names"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   account_id = Column(BigInteger, ForeignKey("twitters.id"))
   account = relationship("TwitterHandle", back_populates="display_names", single_parent=True)
@@ -152,12 +152,12 @@ class TwitterScreenName(Base):
 
   __tablename__ = "twitter_screen_names"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   account_id = Column(BigInteger, ForeignKey("twitters.id"))
   account = relationship("TwitterHandle", back_populates="screen_names", single_parent=True)
   when = Column(ArrowType)
-  
+
   def __repr__(self):
     return "<TwitterScreenName %r %r>" % (self.account_id, self.handle)
 
@@ -169,7 +169,7 @@ class TwitterFollows(Base):
 
   __tablename__ = "twitter_follows"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   follows_id = Column(BigInteger, ForeignKey("twitters.id"))
   follower_id = Column(BigInteger, ForeignKey("twitters.id"))
   when = Column(ArrowType)
@@ -182,10 +182,13 @@ class EmailHandle(Base):
 
   __tablename__ = "emails"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="email_accounts")
+
+  def __repr__(self):
+    return "<EmailHandle %s>" % (self.handle,)
 
 
 class GithubHandle(Base):
@@ -195,7 +198,7 @@ class GithubHandle(Base):
 
   __tablename__ = "githubs"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="github_accounts")
@@ -203,7 +206,7 @@ class GithubHandle(Base):
   @property
   def url(self):
     return "http://github.com/%s" % (self.handle,)
-  
+
   def __repr__(self):
     return "<GithubHandle %r>" % (self.url,)
 
@@ -217,7 +220,7 @@ class KeybaseHandle(Base):
 
   __tablename__ = "keybases"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="keybase_accounts")
@@ -225,7 +228,7 @@ class KeybaseHandle(Base):
   @property
   def url(self):
     return "http://keybase.io/%s" % (self.handle,)
-  
+
   def __repr__(self):
     return "<KeybaseHandle %r>" % (self.url,)
 
@@ -239,7 +242,7 @@ class RedditHandle(Base):
 
   __tablename__ = "reddits"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="reddit_accounts")
@@ -261,7 +264,7 @@ class LobstersHandle(Base):
 
   __tablename__ = "lobsters"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="lobsters_accounts")
@@ -283,7 +286,7 @@ class HNHandle(Base):
 
   __tablename__ = "orage_websites"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="hn_accounts")
@@ -303,7 +306,7 @@ class Website(Base):
 
   __tablename__ = "websities"
 
-  id = Column(BigInteger, primary_key=True)
+  id = Column(Integer, primary_key=True, autoincrement=True)
   handle = Column(String, nullable=False)
   persona_id = Column(BigInteger, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="websites")
@@ -316,6 +319,25 @@ class Website(Base):
     return "<Website %r>" % (self.url,)
 
 
+class PhoneNumber(Base):
+  """
+  People still have tellephones for whatever damnfool reason.
+  """
+
+  __tablename__ = "telephones"
+
+  id = Column(Integer, primary_key=True, autoincrement=True)
+  handle = Column(String, nullable=False)
+  persona_id = Column(BigInteger, ForeignKey("personas.id"))
+  persona = relationship("Persona", back_populates="phone_numbers")
+
+  def __repr__(self):
+    return "<PhoneNumber %s>" % (self.handle,)
+
+  def __str__(self):
+    return self.handle
+
+
 class Suspicion(Base):
   """
   We don't always know who owns a Profile. There may be many people, there may be one person and we
@@ -326,10 +348,10 @@ class Suspicion(Base):
 
   __tablename__ = "suspicions"
 
-  id = Column(BigInteger, primary_key=True)
-  person_id = Column(BigInteger, ForeignKey("people.id"))
+  id = Column(Integer, primary_key=True)
+  person_id = Column(Integer, ForeignKey("people.id"))
   person = relationship("Person", back_populates="suspicions")
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
+  persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="suspicions")
 
 
@@ -343,10 +365,10 @@ class Member(Base):
 
   __tablename__ = "memberships"
 
-  id = Column(BigInteger, primary_key=True)
-  person_id = Column(BigInteger, ForeignKey("people.id"))
+  id = Column(Integer, primary_key=True)
+  person_id = Column(Integer, ForeignKey("people.id"))
   person = relationship("Person", back_populates="memberships")
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
+  persona_id = Column(Integer, ForeignKey("personas.id"))
   persona = relationship("Persona", back_populates="members")
 
 
