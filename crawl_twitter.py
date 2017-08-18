@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 A quick and dirty script to crawl my Twitter friends & followers, populating the db
 """
@@ -13,6 +14,7 @@ import twitter.error
 
 
 args = argparse.ArgumentParser()
+args.add_argument("-u", "--username", dest="user")
 args.add_argument("-F", "--no-follows",
                   dest="friends",
                   default=True)
@@ -27,16 +29,11 @@ bbdb_config = config.BBDBConfig()
 twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
 
 if __name__ == '__main__':
-  opts = args.parse_args(sys.argv)
+  opts = args.parse_args(sys.argv[1:])
 
   session = factory()
 
-  if len(sys.argv) == 2:
-    user = twitter_api.GetUser(screen_name=sys.argv[1])
-
-  else:
-    # Get me
-    user = twitter_api.VerifyCredentials()
+  user = twitter_api.GetUser(screen_name=opts.user)
 
   # Ensure the seed user is in the db
   bt.insert_user(session, user)

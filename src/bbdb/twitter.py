@@ -31,14 +31,12 @@ def insert_handle(session, user: User, persona=None):
 
   handle = session.query(TwitterHandle).filter_by(id=user.id).first()
   if not handle:
-    persona = Persona()
-    session.add(persona)
-  elif persona:
-    pass
-  handle = TwitterHandle(id=user.id, persona=persona)
-  session.add(handle)
-  
-  session.commit()
+    if not persona:
+      persona = Persona()
+      session.add(persona)
+    handle = TwitterHandle(id=user.id, persona=persona)
+    session.add(handle)
+    session.commit()
 
   return handle
 
@@ -63,7 +61,7 @@ def insert_display_name(session, user: User):
   return display_name
 
 
-def insert_user(session, user, persona):
+def insert_user(session, user, persona=None):
   """
   Given a SQL session and a Twitter user's handle, find (or create) the handle and write out the
   API user details for that handle at the present point in time.
