@@ -10,7 +10,16 @@ class BBDBConfig(object):
   A session-like object, derived from loading a configuration file.
   """
 
+  SINGLETON = None
+
+  def __new__(cls):
+    if not cls.SINGLETON:
+      cls.SINGLETON = super(BBDBConfig, cls).__new__(cls)
+
+    return cls.SINGLETON
+
   def __init__(self, config="config.yml"):
+    super().__init__()
     self._filename = config
     with open(config) as f:
       self._config = yaml.safe_load(f)
@@ -42,3 +51,8 @@ class BBDBConfig(object):
   @property
   def twitter_cache_timeout(self):
     return int(self._twitter.get("cache_ttl", 24*60*60))
+
+  @property
+  def sql_uri(self):
+    return "{dialect}://{username}:{password}@{hostname}:{port}/{database}"\
+      .format(**self._config["sql"])
