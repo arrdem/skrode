@@ -2,17 +2,39 @@
 BBDB schema
 """
 
-from sqlalchemy import Column, ForeignKey, Integer, String, Unicode
-from sqlalchemy.types import BigInteger
+from enum import Enum as _Enum
+
+from sqlalchemy import Column, ForeignKey, Integer, Unicode
+from sqlalchemy.types import BigInteger, Enum
 from sqlalchemy.orm import relationship, backref, composite
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm.session import object_session
+from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy_utils import ArrowType
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
 
 
-class Base(declarative_base()):
+def get_or_create(session, model, **kwargs):
+  instance = session.query(model).filter_by(**kwargs).first()
+  if not instance:
+    instance = model(**kwargs)
+    session.add(instance)
+    session.commit()
+  return instance
+
+
+class Base(object):
   """
   Base class. Provides a repr() and not much more.
   """
+
+  @property
+  def session(self):
+    return object_session(self)
+  
+  @declared_attr
+  def __tablename__(cls):
+    return cls.__name__.lower()
 
   def __repr__(self):
     return "<{} {}>"\
@@ -23,8 +45,52 @@ class Base(declarative_base()):
                    "_id" not in k and
                    not k == "metadata" and getattr(self, k)]))
 
+Base = declarative_base(cls=Base)
 
-class Person(Base):
+class UUIDed(object):
+  """A mixin used for UUID indexes."""
+
+  @declared_attr
+  def id(cls):
+    return Column(UUID, primary_key=True)
+
+
+class InternedUnicode(Base, UUIDed):
+  """
+  A table used for storing interned strings. Everything joins against this. May be indexed.
+  """
+
+  text = Column(Unicode, nullable=False)
+
+  def __str__(self):
+    return self.text
+
+
+class Named(object):
+  """A mixin for things which have interned name strings."""
+
+  @declared_attr
+  def _name_id(cls):
+    return Column(UUID, ForeignKey("internedunicode.id"))
+
+  @declared_attr
+  def _name(cls):
+    return relationship("InternedUnicode")
+
+  @hybrid_property
+  def name(self):
+    if self._name:
+      return self._name.text
+    else:
+      return ""
+
+  @name.setter
+  def name(self, value):
+    self._name_id = get_or_create(self.session, session.InternedUnicode,
+                                  text=unicode(value))
+
+
+class Human(Base, UUIDed):
   """
   The record type for an entity in the BBDB.
 
@@ -35,15 +101,12 @@ class Person(Base):
   People are immutable.
   """
 
-  __tablename__ = "people"
-
-  id = Column(Integer, primary_key=True)
   memberships = relationship("Member")
   suspicions = relationship("Suspicion")
   personas = relationship("Persona")
 
 
-class Persona(Base):
+class Persona(Base, UUIDed):
   """
   Personas represent an account (access) or set of accesses.
 
@@ -53,29 +116,26 @@ class Persona(Base):
   For instance @arrdemsays is a Twitter account which has multiple contributors. As is @drill etc.
   """
 
-  __tablename__ = "personas"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  names = relationship("Name", back_populates="persona")
-  handles = relationship("Handle", back_populates="persona")
+  id = Column(UUID, primary_key=True)
+  names = relationship("PersonaName", back_populates="persona")
+  account = relationship("Accounts", back_populates="persona")
+  urls = relationship("Url", back_populates="persona")
 
   suspicions = relationship("Suspicion")
   members = relationship("Member")
 
-  owner_id = Column(BigInteger, ForeignKey("people.id"), nullable=True)
-  owner = relationship("Person", back_populates="personas")
+  owner_id = Column(UUID, ForeignKey("human.id"), nullable=True)
+  owner = relationship("Human", back_populates="personas")
 
 
-class Name(Base):
+class Name(Base, Named, UUIDed):
   """
   Names or Aliases are associated with Personas.
+
+  Name strings are interned, although names references are unique to a persona.
   """
 
-  __tablename__ = "names"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  name = Column(String, nullable=False)
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
+  persona_id = Column(UUID, ForeignKey("persona.id"))
   persona = relationship("Persona", back_populates="names")
 
   def __repr__(self):
@@ -85,117 +145,105 @@ class Name(Base):
     return self.name
 
 
-class Handle(Base):
+class Service(Base, Named, UUIDed):
   """
-  Accounts are associated with personas.
+  Services are records for where an account exists.
   """
 
-  __tablename__ = "twitters"
+  url = Column(Unicode, nullable=False)
 
-  id = Column(BigInteger, primary_key=True)
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
-  persona = relationship("Persona", back_populates="twitter_accounts")
-  display_names = relationship("TwitterDisplayName")
-  screen_names = relationship("TwitterScreenName")
 
-  @property
-  def screen_name(self):
-    return self.screen_names[-1].handle
+class Account(Base, UUIDed):
+  """
+  Handles are accounts on services, associated with personas.
 
-  @property
-  def display_name(self):
-    return self.display_names[-1].handle
+  Some services let an account take on multiple names, or change a transitory "display" name while
+  retaining a somewhat permanent name or internal identifier which may be exposed.
+  """
+
+  external_id = Column(Unicode, nullable=False)
+
+  service_id = Column(UUID, ForeignKey("service.id"))
+  service = relationship("Service")
+
+  # The relationship with the persona type
+  persona_id = Column(UUID, ForeignKey("persona.id"))
+  persona = relationship("Persona", back_populates="accounts")
+
+  names = relationship("AccountName")
+
+  # Want more shit? Throw it here.
+  more = Column(JSONB)
 
   def __repr__(self):
-    return "<Handle %r \"@%s\">" % (self.id, self.screen_name)
+    return "<Account %r \"@%s\">" % self.id
 
 
-class DisplayName(Base):
+class AccountName(Base, Named, UUIDed):
   """
   Accounts have rather a lot of data such as display names which may change and isn't essential to
   the concept of the user.
 
-  Display names are what we call the user's easily customized name. Some people change it quite a
-  lot, frequently as a joke or other statement. Tracking those may be interesting.
+  Account names or screen names are what we call the user's easily customized name. Some people
+  change it quite a lot, frequently as a joke or other statement. Tracking those may be interesting.
   """
 
-  __tablename__ = "display_names"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  handle = Column(String, nullable=False)
-  account_id = Column(BigInteger, ForeignKey("twitters.id"))
-  account = relationship("TwitterHandle", back_populates="display_names", single_parent=True)
+  account_id = Column(UUID, ForeignKey("account.id"))
+  account = relationship("Account", back_populates="names", single_parent=True)
   when = Column(ArrowType)
 
 
-class ScreenName(Base):
-  """
-  Twitter accounts have a publicly visible name - the famous @ handle. This is what we call the
-  screen name.
-
-  Screen names don't change often, but for various reasons Twitter accounts can change screen name.
-  For instance name disputes, or simple fancy may cause users to alter their screen name.
-
-  This table exists in part because mapping screen names to "real" Twitter internal IDs consumes
-  Twitter API calls which are expensive and should be used sparingly.
-  """
-
-  __tablename__ = "screen_names"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  handle = Column(String, nullable=False)
-  account_id = Column(BigInteger, ForeignKey("twitters.id"))
-  account = relationship("Handle", back_populates="screen_names", single_parent=True)
-  when = Column(ArrowType)
+class ACCOUNTRELATIONSHIP(_Enum):
+  none = 0
+  follows = 1
+  ignores = 2
+  blocks = 3
 
 
-class Follows(Base):
-  """
-  Accounts follow each-other. This table represents one user following another.
-  """
+class AccountRelationship(Base, UUIDed):
+  """A Left and Right account, related by an ACCOUNTRELATIONSHIP. a->b"""
 
-  __tablename__ = "follows"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  follows_id = Column(BigInteger, ForeignKey("twitters.id"))
-  follower_id = Column(BigInteger, ForeignKey("twitters.id"))
-  when = Column(ArrowType)
+  id = Column(UUID, primary_key=True)
+  left_id = Column(UUID, ForeignKey("account.id"))
+  right_id = Column(UUID, ForeignKey("account.id"))
+  rel = Column(Enum(ACCOUNTRELATIONSHIP))
 
 
-class Website(Base):
-  """
-  Websites are associated with personas.
-  """
-
-  __tablename__ = "websities"
-
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  handle = Column(String, nullable=False)
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
-  persona = relationship("Persona", back_populates="websites")
-
-  @property
-  def url(self):
-    return self.handle
+class POSTDISTRIBUTION(_Enum):
+  broadcast = 0
+  to = 1
+  cc = 2
+  bcc = 3
 
 
-class PhoneNumber(Base):
-  """
-  People still have tellephones for whatever damnfool reason.
-  """
+class Post(Base, UUIDed):
+  """Used to record a post by an account."""
 
-  __tablename__ = "telephones"
+  # Who posted
+  poster_id = Column(UUID, ForeignKey("account.id"))
+  poster = relationship("Account")
 
-  id = Column(Integer, primary_key=True, autoincrement=True)
-  handle = Column(String, nullable=False)
-  persona_id = Column(BigInteger, ForeignKey("personas.id"))
-  persona = relationship("Persona", back_populates="phone_numbers")
+  # Who all saw it
+  distribution = relationship("PostDistribution")
 
-  def __str__(self):
-    return self.handle
+  # The post itself
+  text = Column(Unicode)
+
+  # Got more? Stick it here.
+  more = Column(JSONB)
 
 
-class Suspicion(Base):
+class PostDistribution(Base, UUIDed):
+  """Used to record the distribution of a post."""
+
+  post_id = Column(UUID, ForeignKey("post.id"))
+  post = relationship("Post", back_populates="distribution", single_parent=True)
+  recipient_id = Column(UUID, ForeignKey("account.id"))
+  recipient = relationship("Account", single_parent=True)
+  distribution = Column(Enum(POSTDISTRIBUTION))
+
+
+  class Suspicion(Base, UUIDed):
   """
   We don't always know who owns a Profile. There may be many people, there may be one person and we
   just don't have enough information to identify who it is.
@@ -203,16 +251,13 @@ class Suspicion(Base):
   The suspicion class is an adjacency mapping between People and Profiles.
   """
 
-  __tablename__ = "suspicions"
-
-  id = Column(Integer, primary_key=True)
-  person_id = Column(Integer, ForeignKey("people.id"))
+  person_id = Column(UUID, ForeignKey("human.id"))
   person = relationship("Person", back_populates="suspicions")
-  persona_id = Column(Integer, ForeignKey("personas.id"))
+  persona_id = Column(UUID, ForeignKey("persona.id"))
   persona = relationship("Persona", back_populates="suspicions")
 
 
-class Member(Base):
+class Member(Base, UUIDed):
   """
   Sometimes we do know who participates in a profile. There may even be many people particularly in
   the case of pen names and groups.
@@ -220,19 +265,8 @@ class Member(Base):
   The Member class is an adjacency mapping between People and Profiles.
   """
 
-  __tablename__ = "memberships"
-
-  id = Column(Integer, primary_key=True)
-  person_id = Column(Integer, ForeignKey("people.id"))
+  person_id = Column(UUID, ForeignKey("human.id"))
   person = relationship("Person", back_populates="memberships")
-  persona_id = Column(Integer, ForeignKey("personas.id"))
+  persona_id = Column(UUID, ForeignKey("persona.id"))
   persona = relationship("Persona", back_populates="members")
 
-
-def get_or_create(session, model, **kwargs):
-  instance = session.query(model).filter_by(**kwargs).first()
-  if not instance:
-    instance = model(**kwargs)
-    session.add(instance)
-    session.commit()
-  return instance
