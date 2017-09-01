@@ -31,10 +31,14 @@ class Base(object):
   @property
   def session(self):
     return object_session(self)
-  
+
   @declared_attr
   def __tablename__(cls):
     return cls.__name__.lower()
+
+  @declared_attr
+  def more(cls):
+    return Column(JSONB)
 
   def __repr__(self):
     return "<{} {}>"\
@@ -86,7 +90,7 @@ class Named(object):
 
   @name.setter
   def name(self, value):
-    self._name_id = get_or_create(self.session, session.InternedUnicode,
+    self._name_id = get_or_create(self.session, InternedUnicode,
                                   text=unicode(value))
 
 
@@ -116,16 +120,40 @@ class Persona(Base, UUIDed):
   For instance @arrdemsays is a Twitter account which has multiple contributors. As is @drill etc.
   """
 
-  id = Column(UUID, primary_key=True)
   names = relationship("PersonaName", back_populates="persona")
   account = relationship("Accounts", back_populates="persona")
   urls = relationship("Url", back_populates="persona")
 
-  suspicions = relationship("Suspicion")
-  members = relationship("Member")
 
-  owner_id = Column(UUID, ForeignKey("human.id"), nullable=True)
-  owner = relationship("Human", back_populates="personas")
+class PERSONARELATIONSHIP(_Enum):
+  """Enum used to represent the possible relationships between personas and humans.
+
+  Humans may be suspected of owning a persona, humans may be known to own a persona, humans may also
+  participate in personas or collectives.
+
+  """
+
+  owns = 1
+  participates = 2
+  suspected = 3
+
+
+class PersonaControl(Base, UUIDed):
+  """Associates Humans and Personas with PERSONARELATIONSHIPs.
+
+  This allows us to somewhat decouple the idea of relating personas to humans from a hardcoded
+  schema which may be subject to refactoring or future evolution while retaining indexable
+  relations.
+
+  """
+
+  human_id = Column(UUID, ForeignKey("human.id"))
+  human = relationship("Human")
+
+  persona_id = Column(UUID, ForeignKey("persona.id"))
+  persona = relationship("Persona")
+
+  rel = Column(Enum(PERSONARELATIONSHIP))
 
 
 class Name(Base, Named, UUIDed):
@@ -171,9 +199,6 @@ class Account(Base, UUIDed):
   persona = relationship("Persona", back_populates="accounts")
 
   names = relationship("AccountName")
-
-  # Want more shit? Throw it here.
-  more = Column(JSONB)
 
   def __repr__(self):
     return "<Account %r \"@%s\">" % self.id
@@ -229,9 +254,6 @@ class Post(Base, UUIDed):
   # The post itself
   text = Column(Unicode)
 
-  # Got more? Stick it here.
-  more = Column(JSONB)
-
 
 class PostDistribution(Base, UUIDed):
   """Used to record the distribution of a post."""
@@ -241,32 +263,3 @@ class PostDistribution(Base, UUIDed):
   recipient_id = Column(UUID, ForeignKey("account.id"))
   recipient = relationship("Account", single_parent=True)
   distribution = Column(Enum(POSTDISTRIBUTION))
-
-
-  class Suspicion(Base, UUIDed):
-  """
-  We don't always know who owns a Profile. There may be many people, there may be one person and we
-  just don't have enough information to identify who it is.
-
-  The suspicion class is an adjacency mapping between People and Profiles.
-  """
-
-  person_id = Column(UUID, ForeignKey("human.id"))
-  person = relationship("Person", back_populates="suspicions")
-  persona_id = Column(UUID, ForeignKey("persona.id"))
-  persona = relationship("Persona", back_populates="suspicions")
-
-
-class Member(Base, UUIDed):
-  """
-  Sometimes we do know who participates in a profile. There may even be many people particularly in
-  the case of pen names and groups.
-
-  The Member class is an adjacency mapping between People and Profiles.
-  """
-
-  person_id = Column(UUID, ForeignKey("human.id"))
-  person = relationship("Person", back_populates="memberships")
-  persona_id = Column(UUID, ForeignKey("persona.id"))
-  persona = relationship("Persona", back_populates="members")
-
