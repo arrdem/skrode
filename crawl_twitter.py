@@ -36,47 +36,58 @@ if __name__ == '__main__':
   user = twitter_api.GetUser(screen_name=opts.user)
 
   # Ensure the seed user is in the db
-  bt.insert_user(session, user)
-  user_id = user.id
+  crawl_user_id = user.id
+  crawl_user = bt.insert_user(session, user)
 
   try:
     when = arrow.utcnow()
 
     if opts.followers:
-      for user_id in twitter_api.GetFollowerIDs(user_id=user_id):
+      for user_id in twitter_api.GetFollowerIDs(user_id=crawl_user_id):
         try:
-          handle = session.query(schema.TwitterHandle).filter_by(id=user.id).first()
-          screen_name = session.query(schema.TwitterHandle)\
-                          .join(schema.TwitterScreenName)\
-                          .filter(schema.TwitterHandle.id == user_id)\
+          extid = bt.twitter_external_id(user_id)
+          handle = session.query(schema.Account)\
+                          .filter_by(external_id=extid)\
                           .first()
+          screen_names = session.query(schema.AccountName)\
+                                .join(schema.Account)\
+                                .filter(schema.Account.external_id == extid)\
+                                .all()
 
           if handle and screen_name:
-            print("Already know of user", user_id, "AKA", screen_name)
+            print("Already know of user", user_id, "AKA", ", ".join(screen_name))
             continue
 
           else:
             # Hydrate the one user explicitly
             user = twitter_api.GetUser(user_id=user_id)
-            print(bt.insert_user(session, user))
-            schema.get_or_create(session, schema.TwitterFollows,
-                                 follows_id=user_id, follower_id=user.id, when=when)
+            new_account = bt.insert_user(session, user)
+            print(new_account)
+            schema.get_or_create(session, schema.AccountRelationship,
+                                 left=new_account, right=crawl_user,
+                                 rel=schema.ACCOUNTRELATIONSHIP.follows,
+                                 when=when)
 
         except twitter.error.TwitterError as e:
           print(user_id, e)
           continue
 
     if opts.friends:
-      for user_id in twitter_api.GetFriendIDs(user_id=user_id):
+      for user_id in twitter_api.GetFriendIDs(user_id=crawl_user_id):
         try:
-          if session.query(schema.TwitterHandle).filter_by(id=user.id).first():
+          if session.query(schema.Account)\
+                    .filter_by(external_id=bt.twitter_external_id(user_id))\
+                    .first():
             continue
 
           else:
             user = twitter_api.GetUser(user_id=user_id)
-            print(bt.insert_user(session, user))
-            schema.get_or_create(session, schema.TwitterFollows,
-                                 follower_id=user_id, follows_id=user.id, when=when)
+            new_user = bt.insert_user(session, user)
+            print(new_user)
+            schema.get_or_create(session, schema.AccountRelationship,
+                                 left=crawl_user, right=new_user,
+                                 rel=schema.ACCOUNTRELATIONSHIP.follows,
+                                 when=when)
 
         except twitter.error.TwitterError as e:
           print(user_id, e)

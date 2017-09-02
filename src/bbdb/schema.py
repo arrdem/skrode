@@ -49,7 +49,9 @@ class Base(object):
                    "_id" not in k and
                    not k == "metadata" and getattr(self, k)]))
 
+
 Base = declarative_base(cls=Base)
+
 
 class UUIDed(object):
   """A mixin used for UUID indexes."""
@@ -178,7 +180,7 @@ class Service(Base, Named, UUIDed):
   Services are records for where an account exists.
   """
 
-  url = Column(Unicode, nullable=False)
+  url = Column(Unicode, nullable=False, unique=True, index=True)
 
 
 class Account(Base, UUIDed):
@@ -189,7 +191,7 @@ class Account(Base, UUIDed):
   retaining a somewhat permanent name or internal identifier which may be exposed.
   """
 
-  external_id = Column(Unicode, nullable=False)
+  external_id = Column(Unicode, nullable=False, unique=True, index=True)
 
   service_id = Column(UUID, ForeignKey("service.id"))
   service = relationship("Service")
@@ -218,7 +220,7 @@ class AccountName(Base, Named, UUIDed):
   when = Column(ArrowType)
 
 
-class ACCOUNTRELATIONSHIP(_Enum):
+class AccountRel(_Enum):
   none = 0
   follows = 1
   ignores = 2
@@ -228,13 +230,17 @@ class ACCOUNTRELATIONSHIP(_Enum):
 class AccountRelationship(Base, UUIDed):
   """A Left and Right account, related by an ACCOUNTRELATIONSHIP. a->b"""
 
-  id = Column(UUID, primary_key=True)
   left_id = Column(UUID, ForeignKey("account.id"))
+  left = relationship("Account", foreign_keys=[left_id])
+  
   right_id = Column(UUID, ForeignKey("account.id"))
-  rel = Column(Enum(ACCOUNTRELATIONSHIP))
+  riht = relationship("Account", foreign_keys=[right_id])
+
+  rel = Column(Enum(AccountRel))
+  when = Column(ArrowType)
 
 
-class POSTDISTRIBUTION(_Enum):
+class PostDist(_Enum):
   broadcast = 0
   to = 1
   cc = 2
@@ -248,8 +254,14 @@ class Post(Base, UUIDed):
   poster_id = Column(UUID, ForeignKey("account.id"))
   poster = relationship("Account")
 
+  # Posts come in parent/child threads
+  thread_id = Column(UUID, ForeignKey("post.id"), nullable=True)
+  thread = relationship("Post", back_populates="children")
+  children = relationship("Post")
+
   # Who all saw it
-  distribution = relationship("PostDistribution")
+  distribution = Column(Enum(PostDist))
+  when = Column(ArrowType)
 
   # The post itself
   text = Column(Unicode)
@@ -262,4 +274,4 @@ class PostDistribution(Base, UUIDed):
   post = relationship("Post", back_populates="distribution", single_parent=True)
   recipient_id = Column(UUID, ForeignKey("account.id"))
   recipient = relationship("Account", single_parent=True)
-  distribution = Column(Enum(POSTDISTRIBUTION))
+  distribution = Column(Enum(PostDist))
