@@ -68,7 +68,7 @@ def insert_handle(session, user: User, persona=None):
   return handle
 
 
-def insert_screen_name(session, user: User, handle=None):
+def insert_screen_name(session, user: User, handle=None, when=None):
   """Insert a screen name, attaching it to a handle."""
 
   external_id = twitter_external_id(user.id)
@@ -76,13 +76,13 @@ def insert_screen_name(session, user: User, handle=None):
   screen_name = get_or_create(session, Name,
                               name="@" + user.screen_name,
                               account=handle)
-  screen_name.when = now()
+  screen_name.when = when or now()
   session.add(screen_name)
 
   return screen_name
 
 
-def insert_display_name(session, user: User, handle=None):
+def insert_display_name(session, user: User, handle=None, when=None):
   """Insert a display name, attaching it to a handle."""
 
   external_id = twitter_external_id(user.id)
@@ -90,13 +90,13 @@ def insert_display_name(session, user: User, handle=None):
   display_name = get_or_create(session, Name,
                                name=user.name,
                                account=handle)
-  display_name.when = now()
+  display_name.when = when or now()
   session.add(display_name)
 
   return display_name
 
 
-def insert_user(session, user, persona=None):
+def insert_user(session, user, persona=None, when=None):
   """
   Given a SQL session and a Twitter user's handle, find (or create) the handle and write out the
   API user details for that handle at the present point in time.
@@ -106,9 +106,11 @@ def insert_user(session, user, persona=None):
 
   assert isinstance(user, User)
 
+  when = when or now()
+
   handle = insert_handle(session, user, persona)
-  insert_screen_name(session, user, handle)
-  insert_display_name(session, user, handle)
+  insert_screen_name(session, user, handle, when=when)
+  insert_display_name(session, user, handle, when=when)
   session.commit()
   session.refresh(handle)
   return handle 

@@ -18,24 +18,22 @@ def insert_kb_user(session, persona, kb_user, kb=None):
 
   external_id = "keybase:" + kb_user.id
 
-  user = session.query(schema.Account)\
-         .filter_by(external_id=external_id,
-                    service=kb)\
-         .first()
+  kb_account = schema.get_or_create(session, schema.Account,
+                                    external_id=external_id,
+                                    service=kb)
 
-  if user and user.persona:
-    merge_left(session, persona, user.persona)
-
+  if kb_account and kb_account.persona:
+    merge_left(session, persona, kb_account.persona)
   else:
-    user = schema.Account(external_id=external_id,
-                          service=kb)
+    kb_account.persona = persona
 
-  session.add(user)
+  session.add(kb_account)
 
   name = schema.get_or_create(session, schema.Name,
                               name=kb_user.username,
-                              account=user)
+                              account=kb_account)
   name.persona_id = persona.id
+
   session.add(name)
 
   for proof in kb_user.proofs:
@@ -52,19 +50,25 @@ def insert_kb_user(session, persona, kb_user, kb=None):
                                           external_id=("%s:%s" % (proof.proof_type,
                                                                   proof.nametag)))
 
-    if proved_account.persona:
+    if proved_account.persona_id is not None:
       merge_left(session, persona, proved_account.persona)
+    else:
+      proved_account.persona_id = persona.id
+      session.add(proved_account)
 
-    schema.get_or_create(session, schema.Name,
-                         name=proof.nametag,
-                         account=proved_account)
+    nametag = schema.get_or_create(session, schema.Name,
+                                   name=proof.nametag,
+                                   account=proved_account)
+    nametag.persona = persona
+    session.add(nametag)
+    session.commit()
 
-    print("User", user, "proved for service", proved_service)
+    print("User", kb_account, "proved for service", proved_service)
 
-  return user
+  return kb_account
 
 
-def link_keybases(session, kb=None):
+def link_keybases(session, kb=None, fast=True):
   """
   Traverse tall known Twitter handles, searching for linked Keybase accounts and attempting to
   populate existing Twitter-linked personas with more information from Keybase.
@@ -76,7 +80,7 @@ def link_keybases(session, kb=None):
   for screenname in session.query(schema.Name)\
                            .join(schema.Account)\
                            .filter(schema.Account.service_id == _twitter.id)\
-                           .filter(schema.Name.name.like("@%"))\
+                           .filter(schema.Name.name.op("~")("^@\S+$"))\
                            .all():
     account = screenname.account
     persona = account.persona or account.persona
@@ -86,7 +90,7 @@ def link_keybases(session, kb=None):
                              .filter(schema.Account.persona_id == persona.id)\
                              .first()
 
-    if keybase_account:
+    if keybase_account and fast:
       print("Skipping handle %s already linked to %s"
             % (screenname.name, keybase_account))
       continue

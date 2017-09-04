@@ -9,6 +9,7 @@ from bbdb.personas import merge_left
 from bbdb.services import mk_service
 from bbdb.twitter import insert_user as twitter_insert_user, insert_twitter
 from bbdb.github import insert_user as gh_insert_user, insert_github, external_id as gh_external_id
+from bbdb.reddit import insert_user as reddit_insert_user
 
 from lobsters import User
 from twitter.error import TwitterError
@@ -25,40 +26,30 @@ def lobsters_external_id(user_or_id):
     return "lobsters:%s" % user_or_id
 
 
-def insert_user(session, twitter_api, user: User, when=None):
+def insert_user(session, twitter_api, user: User, when=None, fast=True):
   when = when or now()
 
   existing = session.query(schema.Account)\
                     .filter_by(service=insert_lobsters(session),
                                external_id=lobsters_external_id(user))\
                     .first()
-  if existing:
+  if existing and fast:
     return existing
 
   else:
-    persona = schema.Persona()
+    persona = existing.persona if existing is not None else schema.Persona()
 
     if user.github:
-      _gh = insert_github(session)
-      gh = session.query(schema.Account)\
-                  .filter_by(service=_gh,
-                             external_id=gh_external_id(user.github))\
-                  .first()
-      if gh and gh.persona:
-        merge_left(session, persona, gh.persona)
-      elif gh:
-        gh.persona = persona
-        session.add(gh)
-        session.commit()
-      else:
-        print(gh_insert_user(session, user.github))
+      gh = gh_insert_user(session, user.github,
+                          persona=persona, when=when)
+      print(gh)
 
     if user.twitter:
       # If there isn't already a persona with this twitter account...
       tw = session.query(schema.Account)\
                   .filter(schema.Account.service == insert_twitter(session))\
                   .join(schema.Name)\
-                  .filter(schema.Name.name.like("@" + user.twitter))\
+                  .filter(schema.Name.name == ("@" + user.twitter))\
                   .first()
       if tw:
         merge_left(session, persona, tw.persona)
@@ -66,11 +57,16 @@ def insert_user(session, twitter_api, user: User, when=None):
         try:
           print("[DEBUG] Hitting Twitter API for user", user.twitter)
           tw = twitter_insert_user(session, twitter_api.GetUser(screen_name=user.twitter),
-                                   persona=persona)
-          persona = tw.persona
+                                   persona=persona, when=when)
+          print(tw)
         except TwitterError as e:
           print(e)
           pass
+
+    if user.reddit:
+      rdt = reddit_insert_user(session, user.reddit,
+                               persona=persona, when=when)
+      print(rdt)
 
     if not persona:
       persona = schema.Persona()

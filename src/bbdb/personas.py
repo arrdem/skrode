@@ -50,9 +50,15 @@ def merge_left(session, l, r):
   for account in r.accounts:
     account.persona_id = l.id
     session.add(account)
+  session.commit()
 
   for name in r.linked_names:
     name.persona_id = l.id
+    session.add(name)
+  session.commit()
+
+  # This is now safe, and if it isn't because there are orphans then it'll explode
+  session.delete(r)
 
   session.commit()
 

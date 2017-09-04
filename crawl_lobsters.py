@@ -2,6 +2,8 @@
 A quick and shitty lobste.rs bbdb intake script.
 """
 
+import argparse
+import sys
 import random
 import time
 
@@ -14,8 +16,17 @@ import progressbar
 
 factory = make_session_factory()
 
+args = argparse.ArgumentParser()
+args.add_argument("-f", "--fast", dest="fast",
+                  action="store_true",
+                  default=True)
+args.add_argument("-r", "--refresh",
+                  dest="fast",
+                  action="store_false")
+
 
 if __name__ == "__main__":
+  opts = args.parse_args(sys.argv[1:])
   bbdb_config = config.BBDBConfig()
 
   session = factory()
@@ -43,7 +54,7 @@ if __name__ == "__main__":
       eu = session.query(schema.Account)\
                   .filter_by(external_id=lobsters_external_id(user.name))\
                   .first()
-      if eu:
+      if eu and opts.fast:
         print("Already know about user", eu)
         continue
 
@@ -60,7 +71,7 @@ if __name__ == "__main__":
           delay = delay + 3
           time.sleep(delay)
 
-      print(insert_user(session, twitter_api, user))
+      print(insert_user(session, twitter_api, user, fast=opts.fast))
 
   finally:
     session.flush()

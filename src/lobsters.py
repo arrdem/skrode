@@ -3,6 +3,7 @@ A quick and shitty lobste.rs read-only driver.
 """
 
 from collections import namedtuple
+from functools import lru_cache
 import re
 
 from bbdb.twitter import _tw_user_pattern
@@ -50,7 +51,7 @@ class User(object):
     self.name = re.match(_lobsters_user_pattern, url).group("username")
 
   @property
-  @once
+  @lru_cache(16)
   def soup(self):
     _soup = get_soup(self.url, self._session)
     if "resource you requested was not found" in _soup:
@@ -59,7 +60,6 @@ class User(object):
     return _soup
 
   @property
-  @once
   def github(self):
     _github = next((link for link in links(self.soup) if "github.com" in link and "/lobsters/wiki" not in link), None)
     if _github:
@@ -67,7 +67,6 @@ class User(object):
       return m.group("username") if m else None
 
   @property
-  @once
   def twitter(self):
     _twitter = next((link for link in links(self.soup) if "twitter.com" in link), None)
     if _twitter:
@@ -75,7 +74,6 @@ class User(object):
       return m.group("username") if m else None
 
   @property
-  @once
   def reddit(self):
     _reddit = next((link for link in links(self.soup) if "reddit.com" in link), None)
     if _reddit:

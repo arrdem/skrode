@@ -138,7 +138,7 @@ class PersonaControl(Base, UUIDed):
   human = relationship("Human")
 
   persona_id = Column(UUID, ForeignKey("persona.id"))
-  persona = relationship("Persona")
+  persona = relationship("Persona", single_parent=True)
 
   rel = Column(PERSONARELATIONSHIP)
 
@@ -178,7 +178,7 @@ class Account(Base, UUIDed):
 
   # The relationship with the persona type
   persona_id = Column(UUID, ForeignKey("persona.id"), nullable=False)
-  persona = relationship("Persona", back_populates="accounts")
+  persona = relationship("Persona", back_populates="accounts", single_parent=True)
 
   names = relationship("Name", uselist=True, cascade="all, delete-orphan")
 
