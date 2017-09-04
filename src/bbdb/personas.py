@@ -16,14 +16,16 @@ def insert_name(session, persona, name):
 
 def personas_by_name(session, name, one=False):
   p = session.query(schema.Persona)\
-                .join(schema.Persona, schema.Account, schema.Persona.id == schema.Account.persona_id)\
-                .join(schema.Account, schema.Name, schema.Name.account_id == schema.Account.id)\
+                .join(schema.Account)\
+                .filter(schema.Persona.id == schema.Account.persona_id)\
+                .join(schema.Name)\
+                .filter(schema.Name.account_id == schema.Account.id)\
                 .filter(schema.Name.name.contains(name))\
                 .order_by(func.length(schema.Name.name))\
                 .distinct()
 
   q = session.query(schema.Persona)\
-                .join(schema.Persona.names)\
+                .join(schema.Name)\
                 .filter(schema.Name.name.contains(name))\
                 .order_by(func.length(schema.Name.name))\
                 .distinct()
