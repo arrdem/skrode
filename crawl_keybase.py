@@ -10,7 +10,7 @@ factory = make_session_factory()
 
 bbdb_config = config.BBDBConfig()
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   session = factory()
   kb_api = Api()
 

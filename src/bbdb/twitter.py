@@ -4,10 +4,11 @@ Bits for interacting with python-twitter
 
 from __future__ import absolute_import
 
-from bbdb.schema import (Persona, Human, Account, AccountName, Service, get_or_create, Name)
+from bbdb.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
+                         get_or_create)
+from bbdb.services import mk_service
 
 from arrow import now
-from detritus import once
 import twitter
 from twitter.models import User
 
@@ -31,13 +32,7 @@ def twitter_external_id(fk):
   return "twitter:{}".format(fk)
 
 
-@once
-def insert_twitter(session):
-  """Insert the Twitter Service record, returning it."""
-
-  return get_or_create(session, Service,
-                       url="http://twitter.com",
-                       name="Twitter")
+insert_twitter = mk_service("Twitter", ["http://twitter.com"])
 
 
 def insert_handle(session, user: User, persona=None):
@@ -65,10 +60,11 @@ def insert_screen_name(session, user: User, handle=None):
 
   external_id = twitter_external_id(user.id)
   handle = handle or get_or_create(session, Account, external_id=external_id)
-  screen_name = get_or_create(session, AccountName,
-                              name=user.screen_name,
-                              account=handle,
-                              when=now())
+  screen_name = get_or_create(session, Name,
+                              name="@" + user.screen_name,
+                              account=handle)
+  screen_name.when = now
+  session.add(screen_name)
 
   return screen_name
 
@@ -78,10 +74,11 @@ def insert_display_name(session, user: User, handle=None):
 
   external_id = twitter_external_id(user.id)
   handle = handle or get_or_create(session, Account, external_id=external_id)
-  display_name = get_or_create(session, AccountName,
+  display_name = get_or_create(session, Name,
                                name=user.name,
-                               account=handle,
-                               when=now())
+                               account=handle)
+  display_name.when = now()
+  session.add(display_name)
 
   return display_name
 
@@ -104,7 +101,72 @@ def insert_user(session, user, persona=None):
 
 def handle_for_screenname(session, screenname):
   return session.query(Account)\
-             .join(AccountName)\
-             .filter(AccountName.name == screenname)\
+             .join(Name)\
+             .filter(Name.name == screenname)\
+             .filter(Account.service_id == insert_twitter(session).id)\
              .group_by(Account)\
              .one()
+
+
+def crawl_followers(session, twitter_api, crawl_user,
+                    crawl_user_id=None, when=None):
+  if not crawl_user_id:
+    crawl_user_id = crawl_user.id
+
+  if when is None:
+    when = now()
+
+  for user_id in twitter_api.GetFollowerIDs(user_id=crawl_user_id):
+    try:
+      extid = twitter_external_id(user_id)
+      handle = session.query(Account)\
+                      .filter_by(external_id=extid)\
+                      .first()
+
+      if handle and handle.names:
+        print("Already know of user", user_id, "AKA",
+              ", ".join([an.name for an in handle.names]))
+        continue
+
+      else:
+        # Hydrate the one user explicitly
+        user = twitter_api.GetUser(user_id=user_id)
+        new_account = insert_user(session, user)
+        print(new_account)
+        get_or_create(session, AccountRelationship,
+                      left=new_account, right=crawl_user,
+                      rel="follows",
+                      when=when)
+
+    except twitter.error.TwitterError as e:
+      print(user_id, e)
+      continue
+
+
+def crawl_friends(session, twitter_api, crawl_user,
+                  crawl_user_id=None, when=None):
+  if not crawl_user_id:
+    crawl_user_id = crawl_user.id
+
+  if when is None:
+    when = now()
+
+  for user_id in twitter_api.GetFriendIDs(user_id=crawl_user_id):
+    try:
+      if session.query(Account)\
+                .filter_by(external_id=twitter_external_id(user_id))\
+                .first():
+        continue
+
+      else:
+        user = twitter_api.GetUser(user_id=user_id)
+        new_user = insert_user(session, user)
+        print(new_user)
+        get_or_create(session, AccountRelationship,
+                      left=crawl_user, right=new_user,
+                      rel="follows",
+                      when=when)
+
+    except twitter.error.TwitterError as e:
+      print(user_id, e)
+      continue

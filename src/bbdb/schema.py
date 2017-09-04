@@ -2,16 +2,19 @@
 BBDB schema
 """
 
-from enum import Enum as _Enum
+import uuid
 
-from sqlalchemy import Column, ForeignKey, Integer, Unicode
-from sqlalchemy.types import BigInteger, Enum
-from sqlalchemy.orm import relationship, backref, composite
+from sqlalchemy import Column, ForeignKey, Integer, Unicode, CheckConstraint, column
+from sqlalchemy.types import Enum
+from sqlalchemy.sql import select, join
+from sqlalchemy.orm import relationship, Query
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy_utils import ArrowType
-from sqlalchemy.dialects.postgresql import JSONB, UUID
-from sqlalchemy.ext.hybrid import hybrid_property, hybrid_method
+from sqlalchemy_utils import ArrowType, UUIDType
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.hybrid import hybrid_property
+
+from detritus import cammel2snake as convert
 
 
 def get_or_create(session, model, **kwargs):
@@ -34,23 +37,17 @@ class Base(object):
 
   @declared_attr
   def __tablename__(cls):
-    return cls.__name__.lower()
+    return convert(cls.__name__)
 
   @declared_attr
   def more(cls):
     return Column(JSONB)
 
-  def __repr__(self):
-    return "<{} {}>"\
-      .format(
-        self.__cls__.__name__,
-        ", ".join(["%s=%r" % (k, getattr(self, k)) for k in dir(self)
-                   if not k.startswith("_") and
-                   "_id" not in k and
-                   not k == "metadata" and getattr(self, k)]))
-
 
 Base = declarative_base(cls=Base)
+
+
+UUID = UUIDType()
 
 
 class UUIDed(object):
@@ -58,42 +55,17 @@ class UUIDed(object):
 
   @declared_attr
   def id(cls):
-    return Column(UUID, primary_key=True)
-
-
-class InternedUnicode(Base, UUIDed):
-  """
-  A table used for storing interned strings. Everything joins against this. May be indexed.
-  """
-
-  text = Column(Unicode, nullable=False)
-
-  def __str__(self):
-    return self.text
+    return Column(UUID,
+                  primary_key=True,
+                  default=uuid.uuid4)
 
 
 class Named(object):
   """A mixin for things which have interned name strings."""
 
   @declared_attr
-  def _name_id(cls):
-    return Column(UUID, ForeignKey("internedunicode.id"))
-
-  @declared_attr
-  def _name(cls):
-    return relationship("InternedUnicode")
-
-  @hybrid_property
-  def name(self):
-    if self._name:
-      return self._name.text
-    else:
-      return ""
-
-  @name.setter
-  def name(self, value):
-    self._name_id = get_or_create(self.session, InternedUnicode,
-                                  text=unicode(value))
+  def name(cls):
+    return Column(Unicode)
 
 
 class Human(Base, UUIDed):
@@ -107,9 +79,15 @@ class Human(Base, UUIDed):
   People are immutable.
   """
 
-  memberships = relationship("Member")
-  suspicions = relationship("Suspicion")
-  personas = relationship("Persona")
+  memberships = relationship("Persona",
+                             secondary="persona_control",
+                             primaryjoin="and_(Human.id==PersonaControl.human_id, or_(PersonaControl.rel=='owns', PersonaControl.rel=='participates'))")
+  suspicions = relationship("Persona",
+                            secondary="persona_control",
+                            primaryjoin="and_(Human.id==PersonaControl.human_id, PersonaControl.rel=='suspected')")
+  personas = relationship("Persona",
+                          secondary="persona_control",
+                          primaryjoin="and_(Human.id==PersonaControl.human_id, PersonaControl.rel=='owns')")
 
 
 class Persona(Base, UUIDed):
@@ -122,22 +100,26 @@ class Persona(Base, UUIDed):
   For instance @arrdemsays is a Twitter account which has multiple contributors. As is @drill etc.
   """
 
-  names = relationship("PersonaName", back_populates="persona")
-  account = relationship("Accounts", back_populates="persona")
-  urls = relationship("Url", back_populates="persona")
+  @hybrid_property
+  def names(self):
+    return set(self.account_names + self.linked_names)
+
+  linked_names = relationship("Name")
+
+  account_names = relationship("Name",
+                               secondary="account",
+                               primaryjoin="Account.persona_id == Persona.id",
+                               secondaryjoin="Name.account_id == Account.id")
+
+  accounts = relationship("Account", back_populates="persona")
+
+  def __repr__(self):
+    return "<Persona {0!r} on {1!r}>".format([name.name for name in self.names],
+                                             [account.service.name for account in self.accounts])
 
 
-class PERSONARELATIONSHIP(_Enum):
-  """Enum used to represent the possible relationships between personas and humans.
-
-  Humans may be suspected of owning a persona, humans may be known to own a persona, humans may also
-  participate in personas or collectives.
-
-  """
-
-  owns = 1
-  participates = 2
-  suspected = 3
+PERSONARELATIONSHIP = Enum("owns", "participates", "suspected",
+                           name="_persona_rel")
 
 
 class PersonaControl(Base, UUIDed):
@@ -155,24 +137,7 @@ class PersonaControl(Base, UUIDed):
   persona_id = Column(UUID, ForeignKey("persona.id"))
   persona = relationship("Persona")
 
-  rel = Column(Enum(PERSONARELATIONSHIP))
-
-
-class Name(Base, Named, UUIDed):
-  """
-  Names or Aliases are associated with Personas.
-
-  Name strings are interned, although names references are unique to a persona.
-  """
-
-  persona_id = Column(UUID, ForeignKey("persona.id"))
-  persona = relationship("Persona", back_populates="names")
-
-  def __repr__(self):
-    return "<Name %r>" % (self.name,)
-
-  def __str__(self):
-    return self.name
+  rel = Column(PERSONARELATIONSHIP)
 
 
 class Service(Base, Named, UUIDed):
@@ -180,7 +145,16 @@ class Service(Base, Named, UUIDed):
   Services are records for where an account exists.
   """
 
-  url = Column(Unicode, nullable=False, unique=True, index=True)
+  urls = relationship("ServiceURL")
+
+
+class ServiceURL(Base, UUIDed):
+  """Records a URL corresponding to a service."""
+
+  service_id = Column(UUID, ForeignKey("service.id"), nullable=True)
+  service = relationship("Service")
+
+  url = Column(Unicode, unique=True, index=True, nullable=False)
 
 
 class Account(Base, UUIDed):
@@ -197,81 +171,108 @@ class Account(Base, UUIDed):
   service = relationship("Service")
 
   # The relationship with the persona type
-  persona_id = Column(UUID, ForeignKey("persona.id"))
+  persona_id = Column(UUID, ForeignKey("persona.id"), nullable=False)
   persona = relationship("Persona", back_populates="accounts")
 
-  names = relationship("AccountName")
+  names = relationship("Name", uselist=True)
 
   def __repr__(self):
-    return "<Account %r \"@%s\">" % self.id
+    return "<Account %r %r>" % (self.external_id, [n.name for n in self.names][:-3])
 
 
-class AccountName(Base, Named, UUIDed):
+class Name(Base, Named, UUIDed):
   """
-  Accounts have rather a lot of data such as display names which may change and isn't essential to
-  the concept of the user.
+  Names or Aliases are associated with Personas, Accounts and many other structures.
 
-  Account names or screen names are what we call the user's easily customized name. Some people
-  change it quite a lot, frequently as a joke or other statement. Tracking those may be interesting.
+  Name strings are interned, although names references are unique to a persona.
   """
 
   account_id = Column(UUID, ForeignKey("account.id"))
-  account = relationship("Account", back_populates="names", single_parent=True)
+  account = relationship("Account", single_parent=True)
+
+  persona_id = Column(UUID, ForeignKey("persona.id"), nullable=True)
+  persona = relationship("Persona", single_parent=True)
+
   when = Column(ArrowType)
 
+  some_fk = CheckConstraint("persona_id IS NOT NULL OR account_id IS NOT NULL")
 
-class AccountRel(_Enum):
-  none = 0
-  follows = 1
-  ignores = 2
-  blocks = 3
+  def __repr__(self):
+    return "<Name %r>" % (self.name,)
+
+  def __str__(self):
+    return self.name
+
+
+ACCOUNTREL = Enum("follows", "blocks", "ignores",
+                  name="_account_rel")
 
 
 class AccountRelationship(Base, UUIDed):
-  """A Left and Right account, related by an ACCOUNTRELATIONSHIP. a->b"""
+  """A Left and Right account, related by an ACCOUNTREL. a->b"""
 
   left_id = Column(UUID, ForeignKey("account.id"))
   left = relationship("Account", foreign_keys=[left_id])
-  
-  right_id = Column(UUID, ForeignKey("account.id"))
-  riht = relationship("Account", foreign_keys=[right_id])
 
-  rel = Column(Enum(AccountRel))
+  right_id = Column(UUID, ForeignKey("account.id"))
+  right = relationship("Account", foreign_keys=[right_id])
+
+  rel = Column(ACCOUNTREL)
   when = Column(ArrowType)
 
 
-class PostDist(_Enum):
-  broadcast = 0
-  to = 1
-  cc = 2
-  bcc = 3
+class ListMembership(Base, UUIDed):
+  """Side table. Relates Accounts to Lists, where appropriate."""
+
+  list_id = Column(UUID, ForeignKey("list.id"))
+  account_id = Column(UUID, ForeignKey("account.id"))
+
+
+class List(Base, UUIDed, Named):
+  """Used to group Posts and Threads of Posts together."""
+
+  # Lists are hosted on a service
+  service_id = Column(UUID, ForeignKey("service.id"))
+  service = relationship("Service")
+
+  members = relationship("Account", secondary="list_membership")
+  threads = relationship("Post", secondary="post_distribution")
 
 
 class Post(Base, UUIDed):
   """Used to record a post by an account."""
 
   # Who posted
-  poster_id = Column(UUID, ForeignKey("account.id"))
+  poster_id = Column(UUID, ForeignKey("account.id"), index=True)
   poster = relationship("Account")
 
   # Posts come in parent/child threads
-  thread_id = Column(UUID, ForeignKey("post.id"), nullable=True)
+  thread_id = Column(UUID, ForeignKey("post.id"), nullable=True, index=True)
   thread = relationship("Post", back_populates="children")
   children = relationship("Post")
 
   # Who all saw it
-  distribution = Column(Enum(PostDist))
+  distribution = relationship("PostDistribution")
   when = Column(ArrowType)
 
   # The post itself
   text = Column(Unicode)
 
 
+POSTDIST = Enum("broadcast", "to", "cc", "bcc",
+                name="_post_rel")
+
+
 class PostDistribution(Base, UUIDed):
   """Used to record the distribution of a post."""
 
-  post_id = Column(UUID, ForeignKey("post.id"))
+  post_id = Column(UUID, ForeignKey("post.id"), nullable=True)
   post = relationship("Post", back_populates="distribution", single_parent=True)
-  recipient_id = Column(UUID, ForeignKey("account.id"))
+  recipient_id = Column(UUID, ForeignKey("account.id"), nullable=True)
   recipient = relationship("Account", single_parent=True)
-  distribution = Column(Enum(PostDist))
+  list_id = Column(UUID, ForeignKey("list.id"))
+  list = relationship("List")
+
+  rel = Column(POSTDIST)
+
+  some_fk = CheckConstraint("post_id IS NOT NULL OR recipient_id IS NOT NULL")

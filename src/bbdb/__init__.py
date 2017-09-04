@@ -19,7 +19,7 @@ def make_session_factory(config=None, db_uri=None):
   engine = create_engine(db_uri)
 
   # Note this _is_ reloading safe, but is bad at schema migrations
-  schema.Base.metadata.create_all(engine)
+  schema.Base.metadata.create_all(engine, checkfirst=True)
 
   # Start a session to the database
   session_factory = sessionmaker(bind=engine)

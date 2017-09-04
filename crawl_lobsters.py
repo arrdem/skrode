@@ -17,7 +17,7 @@ from twitter.error import TwitterError
 factory = make_session_factory()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   bbdb_config = config.BBDBConfig()
 
   session = factory()
@@ -35,9 +35,9 @@ if __name__ == '__main__':
     random.shuffle(users)
 
     bar = progressbar.ProgressBar(widgets=[
-      ' [', progressbar.Timer(), '] ',
+      " [", progressbar.Timer(), "] ",
       progressbar.Bar(),
-      ' (', progressbar.ETA(), ') ',
+      " (", progressbar.ETA(), ") ",
     ])
 
     delay = 1

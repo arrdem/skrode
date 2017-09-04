@@ -17,7 +17,7 @@ bbdb_config = config.BBDBConfig()
 
 twitter_api = twitter.api_for_config(bbdb_config, sleep_on_rate_limit=True)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   session = factory()
 
   if len(sys.argv) == 2:

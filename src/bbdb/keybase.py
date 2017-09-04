@@ -4,25 +4,33 @@ A BBDB module for trying to find keybase identities related to a profile
 
 from keybase import Api, NoSuchUserException
 from bbdb import schema
+from bbdb.services import mk_service, normalize_url
+from bbdb.twitter import insert_twitter
 
 
-proof_types = set()
+_proof_types = set()
+
+
+insert_keybase = mk_service("Keybase", ["http://keybase.io"])
 
 
 def insert_kb_user(session, persona, kb_user):
-  schema.get_or_create(session, schema.KeybaseHandle, handle=kb_user.username, persona=persona)
-
-  tags_to_types = {"hackernews": schema.HNHandle,
-                   "github": schema.GithubHandle,
-                   "reddit": schema.RedditHandle,
-                   "generic_web_site": schema.Website}
+  schema.get_or_create(session, schema.Account,
+                       external_id="kekybase:" + kb_user.id,
+                       service=insert_keybase(session),
+                       persona=persona)
 
   for proof in kb_user.proofs:
-    ctor = tags_to_types.get(proof.proof_type)
-    if ctor:
-      schema.get_or_create(session, ctor, handle=proof.nametag, persona=persona)
+    if proof.proof_type == "generic_web_site":
+      continue
 
-    proof_types.add(proof.proof_type)
+    proved_service = schema.get_or_create(session, schema.Service,
+                                          name=proof.proof_type)
+    schema.get_or_create(session, schema.ServiceURL,
+                         service=proved_service,
+                         url=normalize_url())
+
+    _proof_types.add(proof.proof_type)
 
 
 def link_keybases(session, kb=None):
@@ -32,15 +40,20 @@ def link_keybases(session, kb=None):
   """
 
   kb = kb or Api()
+  _twitter = insert_twitter(session)
 
-  for screenname in session.query(schema.TwitterScreenName).all():
+  for screenname in session.query(schema.Name)\
+                           .join(schema.Account)\
+                           .filter(schema.Account.service == _twitter)\
+                           .all():
     account = screenname.account
-    persona = account.persona
+    persona = account.persona or account.persona
 
     if persona.keybase_accounts:
-      print("Skipping handle %s already linked to %s" % (screenname.handle, persona.keybase_accounts))
+      print("Skipping handle %s already linked to %s"
+            % (screenname.handle, persona.keybase_accounts))
       continue
-    
+
     try:
       name = screenname.handle
       print("Trying twitter handle", name)
