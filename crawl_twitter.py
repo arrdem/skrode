@@ -6,11 +6,11 @@ A quick and dirty script to crawl my Twitter friends & followers, populating the
 import argparse
 import sys
 
-from bbdb import schema, twitter as bt, config, make_session_factory
+from bbdb import schema, twitter as bt, config, make_session_factory, personas
 
 import arrow
-from twitter import _FileCache
-import twitter.error
+from twitter.models import User
+from twitter.error import TwitterError
 
 
 args = argparse.ArgumentParser()
@@ -21,6 +21,9 @@ args.add_argument("-F", "--no-follows",
 args.add_argument("-R", "--no-followers",
                   dest="followers",
                   default=True)
+args.add_argument("-f", "--file",
+                  dest="filename",
+                  default=None)
 
 factory = make_session_factory()
 
@@ -28,59 +31,49 @@ bbdb_config = config.BBDBConfig()
 
 twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
 
   session = factory()
 
-  user = twitter_api.GetUser(screen_name=opts.user)
+  if opts.filename:
+    with open(opts.filename) as f:
+      twitter_user = None
+      line = None
+      for line in f:
+        line = line.strip()
+        try:
+          twitter_user = twitter_api.GetUser(screen_name=line)
+          if isinstance(twitter_user, dict):
+            twitter_user = User.NewFromJsonDict(twitter_user)
+
+          persona = personas.personas_by_name(session, line, one=True, exact=True)
+          print(bt.insert_user(session, twitter_user, persona))
+        except TwitterError as e:
+          print(line, line, e)
+        except AssertionError as e:
+          print(line, twitter_user, e)
+          raise e
+    return
+
+  elif opts.user:
+    user = twitter_api.GetUser(screen_name=opts.user)
+  else:
+    user = twitter_api.VerifyCredentials()
 
   # Ensure the seed user is in the db
-  bt.insert_user(session, user)
-  user_id = user.id
+  crawl_user_id = user.id
+  crawl_user = bt.insert_user(session, user)
+  print("Crawling user", crawl_user_id, ":", crawl_user)
 
   try:
     when = arrow.utcnow()
 
     if opts.followers:
-      for user_id in twitter_api.GetFollowerIDs(user_id=user_id):
-        try:
-          handle = session.query(schema.TwitterHandle).filter_by(id=user.id).first()
-          screen_name = session.query(schema.TwitterHandle)\
-                          .join(schema.TwitterScreenName)\
-                          .filter(schema.TwitterHandle.id == user_id)\
-                          .first()
-
-          if handle and screen_name:
-            print("Already know of user", user_id, "AKA", screen_name)
-            continue
-
-          else:
-            # Hydrate the one user explicitly
-            user = twitter_api.GetUser(user_id=user_id)
-            print(bt.insert_user(session, user))
-            schema.get_or_create(session, schema.TwitterFollows,
-                                 follows_id=user_id, follower_id=user.id, when=when)
-
-        except twitter.error.TwitterError as e:
-          print(user_id, e)
-          continue
+      bt.crawl_followers(session, twitter_api, crawl_user, when=when)
 
     if opts.friends:
-      for user_id in twitter_api.GetFriendIDs(user_id=user_id):
-        try:
-          if session.query(schema.TwitterHandle).filter_by(id=user.id).first():
-            continue
-
-          else:
-            user = twitter_api.GetUser(user_id=user_id)
-            print(bt.insert_user(session, user))
-            schema.get_or_create(session, schema.TwitterFollows,
-                                 follower_id=user_id, follows_id=user.id, when=when)
-
-        except twitter.error.TwitterError as e:
-          print(user_id, e)
-          continue
+      bt.crawl_friends(session, twitter_api, crawl_user, when=when)
 
   finally:
     session.flush()

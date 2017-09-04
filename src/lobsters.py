@@ -3,11 +3,19 @@ A quick and shitty lobste.rs read-only driver.
 """
 
 from collections import namedtuple
-import time
+import re
 
+from bbdb.twitter import _tw_user_pattern
+from bbdb.github import _gh_user_pattern
+from bbdb.reddit import _reddit_user_pattern
+
+from detritus import once
 from bs4 import BeautifulSoup
 import requests
 from retrying import retry
+
+
+_lobsters_user_pattern = re.compile("(https?://)lobste.rs/(u|user)/(?P<username>[^/?]+)")
 
 
 class LobstersException(Exception):
@@ -39,38 +47,43 @@ class User(object):
     self._soup = None
     self._github = None
     self._twitter = None
+    self.name = re.match(_lobsters_user_pattern, url).group("username")
 
   @property
+  @once
   def soup(self):
-    if not self._soup:
-      _soup = get_soup(self.url, self._session)
-      if "resource you requested was not found" in _soup:
-        print("404 on user", self.url)
-        raise LobstersException("No such user or rate limited!")
-      else:
-        self._soup = _soup
-
-    return self._soup
+    _soup = get_soup(self.url, self._session)
+    if "resource you requested was not found" in _soup:
+      print("404 on user", self.url)
+      raise LobstersException("No such user or rate limited!")
+    return _soup
 
   @property
+  @once
   def github(self):
-    if not self._github:
-      self._github = next((link for link in links(self.soup) if "github.com" in link and "/lobsters/wiki" not in link), None)
-      if self._github:
-        self._github = [t for t in self._github.split("/") if t][-1]
-    return self._github
+    _github = next((link for link in links(self.soup) if "github.com" in link and "/lobsters/wiki" not in link), None)
+    if _github:
+      m = re.match(_gh_user_pattern, _github)
+      return m.group("username") if m else None
 
   @property
+  @once
   def twitter(self):
-    if not self._twitter:
-      self._twitter = next((link for link in links(self.soup) if "twitter.com" in link), None)
-      if self._twitter:
-        self._twitter = [t for t in self._twitter.split("/") if t][-1]
-    return self._twitter
+    _twitter = next((link for link in links(self.soup) if "twitter.com" in link), None)
+    if _twitter:
+      m = re.match(_tw_user_pattern, _twitter)
+      return m.group("username") if m else None
 
   @property
-  def name(self):
-    return [t for t in self.url.split("/")][-1]
+  @once
+  def reddit(self):
+    _reddit = next((link for link in links(self.soup) if "reddit.com" in link), None)
+    if _reddit:
+      m = re.match(_reddit_user_pattern, _reddit)
+      return m.group("username") if m else None
+
+  def __repr__(self):
+    return "<lobsters.User %r>" % self.name
 
 
 class Api(object):

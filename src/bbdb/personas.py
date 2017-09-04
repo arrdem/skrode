@@ -5,35 +5,37 @@ Helpers for working with (merging/splitting) personas.
 from bbdb import schema
 from bbdb.schema import get_or_create
 from bbdb.twitter import insert_user
+from bbdb.telephones import insert_phone_number
 
 from sqlalchemy import func
-from sqlalchemy import or_
-
-from phonenumbers import format_number as format_phonenumber, parse as parse_phonenumber, PhoneNumberFormat
 
 
 def insert_name(session, persona, name):
   return get_or_create(session, schema.Name, name=name, persona=persona)
 
 
-def insert_phone_number(session, persona, number):
-  _number = format_phonenumber(parse_phonenumber(number), PhoneNumberFormat.RFC3966)
-  _number = schema.PhoneNumber(handle=_number, persona=persona)
-  session.add(_number)
-  session.commit()
-  return _number
+def personas_by_name(session, name, one=False, exact=False):
+  _cmp = lambda: schema.Name.name.contains(name) if not exact else schema.Name.name == name
 
-
-def personas_by_name(session, name, one=False):
-  q = session.query(schema.Persona)\
-                .join(schema.Persona.names)\
-                .filter(schema.Name.name.contains(name))\
+  p = session.query(schema.Persona)\
+                .join(schema.Account)\
+                .filter(schema.Persona.id == schema.Account.persona_id)\
+                .join(schema.Name)\
+                .filter(schema.Name.account_id == schema.Account.id)\
+                .filter(_cmp())\
                 .order_by(func.length(schema.Name.name))\
                 .distinct()
+
+  q = session.query(schema.Persona)\
+                .join(schema.Name)\
+                .filter(_cmp())\
+                .order_by(func.length(schema.Name.name))\
+                .distinct()
+
   if one:
-    return q.first()
+    return p.first() or q.first()
   else:
-    return q.all()
+    return set(p.all() + q.all())
 
 
 def merge_left(session, l, r):
@@ -45,41 +47,12 @@ def merge_left(session, l, r):
     # We're merging a record onto itself
     return
 
-  for name in r.names:
-    insert_name(session, l, name.name)
-    session.delete(name)
+  for account in r.accounts:
+    account.persona_id = l.id
+    session.add(account)
 
-  for twitter_account in r.twitter_accounts:
-    twitter_account.persona = l
-    session.add(twitter_account)
-
-  for email_account in r.email_accounts:
-    email_account.persona = l
-    session.add(email_account)
-
-  for github_account in r.github_accounts:
-    github_account.persona = l
-    session.add(github_account)
-
-  for keybase_account in r.keybase_accounts:
-    keybase_account.persona = l
-    session.add(keybase_account)
-
-  for reddit_account in r.reddit_accounts:
-    reddit_account.persona = l
-    session.add(reddit_account)
-
-  for lobsters_account in r.lobsters_accounts:
-    lobsters_account.persona = l
-    session.add(lobsters_account)
-
-  for hn_account in r.hn_accounts:
-    hn_account.persona = l
-    session.add(l)
-
-  for website in r.websites:
-    website.persona = l
-    session.add(website)
+  for name in r.linked_names:
+    name.persona_id = l.id
 
   session.commit()
 
