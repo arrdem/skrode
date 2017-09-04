@@ -54,27 +54,27 @@ if __name__ == "__main__":
         except AssertionError as e:
           print(line, twitter_user, e)
           raise e
-    return
 
-  elif opts.user:
-    user = twitter_api.GetUser(screen_name=opts.user)
   else:
-    user = twitter_api.VerifyCredentials()
+    if opts.user:
+      user = twitter_api.GetUser(screen_name=opts.user)
+    else:
+      user = twitter_api.VerifyCredentials()
 
-  # Ensure the seed user is in the db
-  crawl_user_id = user.id
-  crawl_user = bt.insert_user(session, user)
-  print("Crawling user", crawl_user_id, ":", crawl_user)
+    # Ensure the seed user is in the db
+    crawl_user_id = user.id
+    crawl_user = bt.insert_user(session, user)
+    print("Crawling user", crawl_user_id, ":", crawl_user)
 
-  try:
-    when = arrow.utcnow()
+    try:
+      when = arrow.utcnow()
 
-    if opts.followers:
-      bt.crawl_followers(session, twitter_api, crawl_user, when=when)
+      if opts.followers:
+        bt.crawl_followers(session, twitter_api, crawl_user, crawl_user_id=crawl_user_id, when=when)
 
-    if opts.friends:
-      bt.crawl_friends(session, twitter_api, crawl_user, when=when)
+      if opts.friends:
+        bt.crawl_friends(session, twitter_api, crawl_user, crawl_user_id=crawl_user_id, when=when)
 
-  finally:
-    session.flush()
-    session.close()
+    finally:
+      session.flush()
+      session.close()
