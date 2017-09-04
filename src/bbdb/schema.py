@@ -104,14 +104,16 @@ class Persona(Base, UUIDed):
   def names(self):
     return set(self.account_names + self.linked_names)
 
-  linked_names = relationship("Name")
+  linked_names = relationship("Name",
+                              cascade="all, delete-orphan")
 
   account_names = relationship("Name",
                                secondary="account",
                                primaryjoin="Account.persona_id == Persona.id",
                                secondaryjoin="Name.account_id == Account.id")
 
-  accounts = relationship("Account", back_populates="persona")
+  accounts = relationship("Account", back_populates="persona",
+                          cascade="all, delete-orphan")
 
   def __repr__(self):
     return "<Persona {0!r} on {1!r}>".format([name.name for name in self.names],
@@ -147,6 +149,9 @@ class Service(Base, Named, UUIDed):
 
   urls = relationship("ServiceURL")
 
+  def __repr__(self):
+    return "<Service %r>" % self.name
+
 
 class ServiceURL(Base, UUIDed):
   """Records a URL corresponding to a service."""
@@ -174,10 +179,10 @@ class Account(Base, UUIDed):
   persona_id = Column(UUID, ForeignKey("persona.id"), nullable=False)
   persona = relationship("Persona", back_populates="accounts")
 
-  names = relationship("Name", uselist=True)
+  names = relationship("Name", uselist=True, cascade="all, delete-orphan")
 
   def __repr__(self):
-    return "<Account %r %r>" % (self.external_id, [n.name for n in self.names][:-3])
+    return "<Account %r %r>" % (self.external_id, [n.name for n in self.names][-3:])
 
 
 class Name(Base, Named, UUIDed):

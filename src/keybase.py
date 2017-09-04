@@ -109,7 +109,7 @@ class Api(object):
     body = self._s.get(self._url + "/user/lookup.json", params=kwargs).json()
     status = Status.from_json(body["status"])
     if not status:
-      print(kwarsg, status)
+      print(kwargs, status)
       raise APIStatusException(status.name)
     else:
       them = body["them"]

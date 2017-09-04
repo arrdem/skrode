@@ -4,13 +4,18 @@ Bits for interacting with python-twitter
 
 from __future__ import absolute_import
 
+import re
+
 from bbdb.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
                          get_or_create)
 from bbdb.services import mk_service
 
-from arrow import now
+from arrow import utcnow as now
 import twitter
 from twitter.models import User
+
+
+_tw_user_pattern = re.compile("(https?://)twitter.com/(?P<username>[^/?]+)(/.+)?(&.+)?")
 
 
 def api_for_config(config, **kwargs):
@@ -36,7 +41,12 @@ insert_twitter = mk_service("Twitter", ["http://twitter.com"])
 
 
 def insert_handle(session, user: User, persona=None):
-  """Insert a Twitter Handle, creating a Persona for it if there isn't one."""
+  """
+  Insert a Twitter Handle, creating a Persona for it if there isn't one.
+
+
+  If the Handle is already known, just linked to another Persona, steal it.
+  """
 
   external_id = twitter_external_id(user.id)
   handle = session.query(Account).filter_by(external_id=external_id).first()
@@ -48,9 +58,12 @@ def insert_handle(session, user: User, persona=None):
     handle = Account(service=insert_twitter(session),
                      external_id=external_id,
                      persona=persona)
-    
-    session.add(handle)
-    session.commit()
+
+  elif handle and persona:
+    handle.persona = persona
+
+  session.add(handle)
+  session.commit()
 
   return handle
 
@@ -63,7 +76,7 @@ def insert_screen_name(session, user: User, handle=None):
   screen_name = get_or_create(session, Name,
                               name="@" + user.screen_name,
                               account=handle)
-  screen_name.when = now
+  screen_name.when = now()
   session.add(screen_name)
 
   return screen_name
@@ -96,7 +109,9 @@ def insert_user(session, user, persona=None):
   handle = insert_handle(session, user, persona)
   insert_screen_name(session, user, handle)
   insert_display_name(session, user, handle)
-  return handle
+  session.commit()
+  session.refresh(handle)
+  return handle 
 
 
 def handle_for_screenname(session, screenname):

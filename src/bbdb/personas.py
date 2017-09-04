@@ -14,19 +14,21 @@ def insert_name(session, persona, name):
   return get_or_create(session, schema.Name, name=name, persona=persona)
 
 
-def personas_by_name(session, name, one=False):
+def personas_by_name(session, name, one=False, exact=False):
+  _cmp = lambda: schema.Name.name.contains(name) if not exact else schema.Name.name == name
+
   p = session.query(schema.Persona)\
                 .join(schema.Account)\
                 .filter(schema.Persona.id == schema.Account.persona_id)\
                 .join(schema.Name)\
                 .filter(schema.Name.account_id == schema.Account.id)\
-                .filter(schema.Name.name.contains(name))\
+                .filter(_cmp())\
                 .order_by(func.length(schema.Name.name))\
                 .distinct()
 
   q = session.query(schema.Persona)\
                 .join(schema.Name)\
-                .filter(schema.Name.name.contains(name))\
+                .filter(_cmp())\
                 .order_by(func.length(schema.Name.name))\
                 .distinct()
 
@@ -46,8 +48,11 @@ def merge_left(session, l, r):
     return
 
   for account in r.accounts:
-    account.persona = l
+    account.persona_id = l.id
     session.add(account)
+
+  for name in r.linked_names:
+    name.persona_id = l.id
 
   session.commit()
 

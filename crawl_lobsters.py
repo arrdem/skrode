@@ -5,14 +5,12 @@ A quick and shitty lobste.rs bbdb intake script.
 import random
 import time
 
-from bbdb import schema, make_session_factory, twitter, config
-from bbdb.personas import merge_left
-from detritus import with_idx
+from bbdb import make_session_factory, twitter, config, schema
+from bbdb.lobsters import insert_user, lobsters_external_id
 import lobsters
 
 import requests
 import progressbar
-from twitter.error import TwitterError
 
 factory = make_session_factory()
 
@@ -42,9 +40,12 @@ if __name__ == "__main__":
 
     delay = 1
     for user in bar(users):
-      persona = None
-
-      time.sleep(delay)
+      eu = session.query(schema.Account)\
+                  .filter_by(external_id=lobsters_external_id(user.name))\
+                  .first()
+      if eu:
+        print("Already know about user", eu)
+        continue
 
       while True:
         try:
@@ -53,45 +54,13 @@ if __name__ == "__main__":
           if delay > 0.01:
             delay = delay - 0.01
           break
+
         except lobsters.LobstersException as e:
           # Linear backoff faster than we tune in
           delay = delay + 3
           time.sleep(delay)
 
-      existing = session.query(schema.LobstersHandle).filter_by(handle=user.name).first()
-      if existing:
-        persona = existing.persona
-        if persona.twitter_accounts or persona.github_accounts:
-          # This user is already linked, continue
-          continue
-
-      if user.github:
-        gh = session.query(schema.GithubHandle).filter_by(handle=user.github).first()
-        if gh:
-          merge_left(session, persona, gh.persona)
-
-      if user.twitter and not persona:
-        t = session.query(schema.TwitterScreenName).filter_by(handle=user.twitter).first()
-        if t:
-          merge_left(session, persona, t.account.persona)
-
-      if not persona:
-        persona = schema.Persona()
-        session.add(persona)
-
-      schema.get_or_create(session, schema.Name, persona=persona, name=user.name)
-
-      print("\r{}".format(schema.get_or_create(session, schema.LobstersHandle, handle=user.name, persona=persona)))
-
-      if user.github:
-        print(schema.get_or_create(session, schema.GithubHandle, persona=persona, handle=user.github))
-        schema.get_or_create(session, schema.Name, persona=persona, name=user.github)
-
-      if user.twitter:
-        try:
-          print(twitter.insert_user(session, twitter_api.GetUser(screen_name=user.twitter)))
-        except TwitterError:
-          pass
+      print(insert_user(session, twitter_api, user))
 
   finally:
     session.flush()
