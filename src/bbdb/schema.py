@@ -14,7 +14,7 @@ from sqlalchemy_utils import ArrowType, UUIDType
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.hybrid import hybrid_property
 
-from detritus import cammel2snake as convert
+from detritus import cammel2snake as convert, unique_by
 
 
 def get_or_create(session, model, **kwargs):
@@ -102,7 +102,8 @@ class Persona(Base, UUIDed):
 
   @hybrid_property
   def names(self):
-    return set(self.account_names + self.linked_names)
+    return unique_by(self.account_names + self.linked_names,
+                     lambda name: name.name)
 
   linked_names = relationship("Name",
                               cascade="all, delete-orphan")

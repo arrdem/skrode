@@ -30,3 +30,17 @@ def once(f):
 def cammel2snake(name):
     s1 = re.sub("(.)([A-Z][a-z]+)", r'\1_\2', name)
     return re.sub("([a-z0-9])([A-Z])", r'\1_\2', s1).lower()
+
+
+def unique_by(coll, fn):
+  """Takes a collection and a transformer, yielding the unique (un-transformed!) elements, where
+  uniqueness is judged with respect to the transformer's value(s) over the source.
+
+  """
+
+  acc = set()
+  for e in coll:
+    x = fn(e)
+    if x not in acc:
+      acc.add(x)
+      yield e

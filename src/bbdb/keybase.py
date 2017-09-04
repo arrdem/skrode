@@ -6,9 +6,7 @@ from keybase import Api, Proof, NoSuchUserException
 from bbdb import schema
 from bbdb.services import mk_service, normalize_url
 from bbdb.twitter import insert_twitter
-
-
-_proof_types = set()
+from bbdb.personas import merge_left
 
 
 insert_keybase = mk_service("Keybase", ["http://keybase.io"])
@@ -18,10 +16,20 @@ def insert_kb_user(session, persona, kb_user, kb=None):
   if kb is None:
     kb = insert_keybase(session)
 
-  user = schema.get_or_create(session, schema.Account,
-                              external_id="keybase:" + kb_user.id,
-                              service=kb,
-                              persona=persona)
+  external_id = "keybase:" + kb_user.id
+
+  user = session.query(schema.Account)\
+         .filter_by(external_id=external_id,
+                    service=kb)\
+         .first()
+
+  if user and user.persona:
+    merge_left(session, persona, user.persona)
+
+  else:
+    user = schema.Account(external_id=external_id,
+                          service=kb)
+
   session.add(user)
 
   name = schema.get_or_create(session, schema.Name,
@@ -41,9 +49,12 @@ def insert_kb_user(session, persona, kb_user, kb=None):
                                        url=normalize_url(proof.service_url))
     proved_account = schema.get_or_create(session, schema.Account,
                                           service=proved_service,
-                                          persona=persona,
                                           external_id=("%s:%s" % (proof.proof_type,
                                                                   proof.nametag)))
+
+    if proved_account.persona:
+      merge_left(session, persona, proved_account.persona)
+
     schema.get_or_create(session, schema.Name,
                          name=proof.nametag,
                          account=proved_account)
