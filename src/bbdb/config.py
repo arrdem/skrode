@@ -10,17 +10,8 @@ class BBDBConfig(object):
   A session-like object, derived from loading a configuration file.
   """
 
-  SINGLETON = None
-
-  def __new__(cls):
-    if not cls.SINGLETON:
-      cls.SINGLETON = super(BBDBConfig, cls).__new__(cls)
-
-    return cls.SINGLETON
-
-  def __init__(self, config="config.yml"):
-    super().__init__()
-    self._filename = config
+  def __init__(self, config=None):
+    self._filename = config or "config.yml"
     with open(config) as f:
       self._config = yaml.safe_load(f)
 

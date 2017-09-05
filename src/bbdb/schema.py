@@ -252,6 +252,9 @@ class Post(Base, UUIDed):
   poster_id = Column(UUID, ForeignKey("account.id"), index=True)
   poster = relationship("Account")
 
+  # The external ID for the thread or post
+  external_id = Column(Unicode, index=True, unique=True)
+
   # Posts come in parent/child threads
   thread_id = Column(UUID, ForeignKey("post.id"), nullable=True, index=True)
   thread = relationship("Post", back_populates="children")
@@ -263,6 +266,9 @@ class Post(Base, UUIDed):
 
   # The post itself
   text = Column(Unicode)
+
+  def __repr__(self):
+    return "<Post from=%r at=%r text=%r>" % (self.poster, self.when, self.text)
 
 
 POSTDIST = Enum("broadcast", "to", "cc", "bcc",

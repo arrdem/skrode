@@ -15,6 +15,8 @@ def make_session_factory(config=None, db_uri=None):
 
   if not config:
     db_uri = BBDBConfig().sql_uri
+  elif config and not db_uri:
+    db_uri = config.sql_uri
 
   engine = create_engine(db_uri)
 
