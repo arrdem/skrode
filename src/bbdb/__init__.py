@@ -2,7 +2,8 @@
 The heart of bbdb. Session & DB state stuff.
 """
 
-from detritus import once
+import sys
+
 from bbdb import schema
 from bbdb.config import BBDBConfig
 
@@ -10,27 +11,31 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 
-def make_session_factory(config=None, db_uri=None):
-  """Returns a session factory for the given db URI. By default uses a local sqlite3 db."""
+class SneakyBBDBModule(object):
+  def make_session_factory(self, config=None, db_uri=None):
+    """Returns a session factory for the given db URI. By default uses a local sqlite3 db."""
 
-  if not config:
-    db_uri = BBDBConfig().sql_uri
-  elif config and not db_uri:
-    db_uri = config.sql_uri
+    if not config and not db_uri:
+      print("Warning: using default config file!")
+      config = BBDBConfig("config.yml")
 
-  engine = create_engine(db_uri)
+    if config and not db_uri:
+      db_uri = config.sql_uri
 
-  # Note this _is_ reloading safe, but is bad at schema migrations
-  schema.Base.metadata.create_all(engine, checkfirst=True)
+    engine = create_engine(db_uri)
 
-  # Start a session to the database
-  session_factory = sessionmaker(bind=engine)
-  return session_factory
+    # Note this _is_ reloading safe, but is bad at schema migrations
+    schema.Base.metadata.create_all(engine, checkfirst=True)
 
+    # Start a session to the database
+    session_factory = sessionmaker(bind=engine)
+    return session_factory
 
-@once
-def session():
-  """A constructor for the \"default\" session. Just a REPL helper."""
+  @property
+  def session(self):
+    """A constructor for the \"default\" session. Just a REPL helper."""
 
-  factory = make_session_factory()
-  return factory()
+    factory = self.make_session_factory()
+    return factory()
+
+sys.modules[__name__] = SneakyBBDBModule()
