@@ -4,17 +4,19 @@ BBDB schema
 
 import uuid
 
-from sqlalchemy import Column, ForeignKey, Integer, Unicode, CheckConstraint, column
-from sqlalchemy.types import Enum
-from sqlalchemy.sql import select, join
-from sqlalchemy.orm import relationship, Query
-from sqlalchemy.orm.session import object_session
-from sqlalchemy.ext.declarative import declarative_base, declared_attr
-from sqlalchemy_utils import ArrowType, UUIDType
+from sqlalchemy import (CheckConstraint, Column, ForeignKey, Integer, Unicode,
+                        column)
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
+from sqlalchemy.orm import Query, relationship
+from sqlalchemy.orm.session import object_session
+from sqlalchemy.sql import join, select
+from sqlalchemy.types import Enum
+from sqlalchemy_utils import ArrowType, UUIDType
 
-from detritus import cammel2snake as convert, unique_by
+from detritus import cammel2snake as convert
+from detritus import unique_by
 
 
 def get_or_create(session, model, **kwargs):
@@ -255,10 +257,11 @@ class Post(Base, UUIDed):
   # The external ID for the thread or post
   external_id = Column(Unicode, index=True, unique=True)
 
-  # Posts come in parent/child threads
-  thread_id = Column(UUID, ForeignKey("post.id"), nullable=True, index=True)
-  thread = relationship("Post", back_populates="children")
-  children = relationship("Post")
+  # Posts that relate to this post
+  children = relationship("Post",
+                          secondary="post_relationship",
+                          primaryjoin="Post.id==PostRelationship.left_id",
+                          secondaryjoin="Post.id==PostRelationship.right_id")
 
   # Who all saw it
   distribution = relationship("PostDistribution")
@@ -268,11 +271,28 @@ class Post(Base, UUIDed):
   text = Column(Unicode)
 
   def __repr__(self):
-    return "<Post from=%r at=%r text=%r>" % (self.poster, self.when, self.text)
+    return ("<Post id=%r, poster_id=%r, poster=%r, at=%r, text=%r>"
+            % (self.external_id, self.poster_id, self.poster, self.when, self.text))
+
+
+POSTREL = Enum("reply-to", "quotes",
+               name="_post_rel")
+
+
+class PostRelationship(Base, UUIDed):
+  """Used to relate posts to each other - quoting, reply-to and soforth."""
+
+  left_id = Column(UUID, ForeignKey("post.id"), index=True)
+  left = relationship("Post", foreign_keys=[left_id])
+
+  right_id = Column(UUID, ForeignKey("post.id"), index=True)
+  right = relationship("Post", foreign_keys=[right_id])
+
+  rel = Column(POSTREL, index=True)
 
 
 POSTDIST = Enum("broadcast", "to", "cc", "bcc",
-                name="_post_rel")
+                name="_post_dist")
 
 
 class PostDistribution(Base, UUIDed):
@@ -285,6 +305,6 @@ class PostDistribution(Base, UUIDed):
   list_id = Column(UUID, ForeignKey("list.id"))
   list = relationship("List")
 
-  rel = Column(POSTDIST)
+  rel = Column(POSTDIST, index=True)
 
   some_fk = CheckConstraint("post_id IS NOT NULL OR recipient_id IS NOT NULL")

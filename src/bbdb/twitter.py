@@ -5,29 +5,32 @@ Bits for interacting with python-twitter
 from __future__ import absolute_import
 
 import re
-import json
 from datetime import datetime
 
-from bbdb.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
-                         get_or_create, Post, PostDistribution)
-from bbdb.services import mk_service
-
-from arrow import utcnow as now, get as aget
 import twitter
+from arrow import get as aget
+from arrow import utcnow as now
+from twitter.error import TwitterError
 from twitter.models import User
 
+from bbdb.schema import (Account, AccountRelationship, Human, Name, Persona,
+                         Post, PostDistribution, PostRelationship, Service,
+                         get_or_create)
+from bbdb.services import mk_service
 
 _tw_user_pattern = re.compile("(https?://)twitter.com/(?P<username>[^/?]+)(/.+)?(&.+)?")
 _tw_datetime_pattern = "%a %b %d %H:%M:%S +0000 %Y"
+_tw_url_pattern = re.compile("https://twitter.com/((?P<username>[^/]+)|(i/web))/status/(?P<id>\d+)")
+
 
 def api_for_config(config, **kwargs):
   _api = twitter.Api(
-    consumer_key=config.twitter_api_key,
-    consumer_secret=config.twitter_api_secret,
-    access_token_key=config.twitter_access_token,
-    access_token_secret=config.twitter_access_secret,
-    cache=twitter._FileCache(config.twitter_cache_dir),
-    **kwargs
+      consumer_key=config.twitter_api_key,
+      consumer_secret=config.twitter_api_secret,
+      access_token_key=config.twitter_access_token,
+      access_token_secret=config.twitter_access_secret,
+      cache=twitter._FileCache(config.twitter_cache_dir),
+      **kwargs
   )
 
   _api.SetCacheTimeout(config.twitter_cache_timeout)
@@ -73,29 +76,31 @@ def insert_handle(session, user: User, persona=None):
 def insert_screen_name(session, user: User, handle=None, when=None):
   """Insert a screen name, attaching it to a handle."""
 
-  external_id = twitter_external_user_id(user.id)
-  handle = handle or get_or_create(session, Account, external_id=external_id)
-  screen_name = get_or_create(session, Name,
-                              name="@" + user.screen_name,
-                              account=handle)
-  screen_name.when = when or now()
-  session.add(screen_name)
+  if user.screen_name:
+    external_id = twitter_external_user_id(user.id)
+    handle = handle or get_or_create(session, Account, external_id=external_id)
+    screen_name = get_or_create(session, Name,
+                                name="@" + user.screen_name,
+                                account=handle)
+    screen_name.when = when or now()
+    session.add(screen_name)
 
-  return screen_name
+    return screen_name
 
 
 def insert_display_name(session, user: User, handle=None, when=None):
   """Insert a display name, attaching it to a handle."""
 
-  external_id = twitter_external_user_id(user.id)
-  handle = handle or get_or_create(session, Account, external_id=external_id)
-  display_name = get_or_create(session, Name,
-                               name=user.name,
-                               account=handle)
-  display_name.when = when or now()
-  session.add(display_name)
+  if user.name:
+    external_id = twitter_external_user_id(user.id)
+    handle = handle or get_or_create(session, Account, external_id=external_id)
+    display_name = get_or_create(session, Name,
+                                 name=user.name,
+                                 account=handle)
+    display_name.when = when or now()
+    session.add(display_name)
 
-  return display_name
+    return display_name
 
 
 def insert_user(session, user, persona=None, when=None):
@@ -118,17 +123,13 @@ def insert_user(session, user, persona=None, when=None):
   return handle
 
 
-def insert_user_from_json(twitter_api, session, user):
-  pass
-
-
 def handle_for_screenname(session, screenname):
   return session.query(Account)\
-             .join(Name)\
-             .filter(Name.name == screenname)\
-             .filter(Account.service_id == insert_twitter(session).id)\
-             .group_by(Account)\
-             .one()
+      .join(Name)\
+      .filter(Name.name == screenname)\
+      .filter(Account.service_id == insert_twitter(session).id)\
+      .group_by(Account)\
+      .one()
 
 
 def crawl_followers(session, twitter_api, crawl_user,
@@ -195,6 +196,12 @@ def crawl_friends(session, twitter_api, crawl_user,
       continue
 
 
+def tweet_id_from_url(url):
+  match = re.match(_tw_url_pattern, url)
+  if match:
+    return match.group("id")
+
+
 def twitter_external_tweet_id(tweet_id):
   return "twitter+tweet:{0}".format(str(tweet_id))
 
@@ -206,10 +213,11 @@ def _get_tweet_text(tweet):
 
   """
 
-  if tweet.truncated and tweet.retweeted_status:
-    return _get_tweet_text(tweet.retweeted_status)
-  else:
-    return tweet.full_text or tweet.text
+  return tweet.full_text or tweet.text
+
+
+def _tweet_or_dummy(session, external_id):
+  return get_or_create(session, Post, external_id=twitter_external_tweet_id(external_id))
 
 
 def insert_tweet(session, twitter_api, tweet):
@@ -218,36 +226,64 @@ def insert_tweet(session, twitter_api, tweet):
   This means inserting the original poster, inserting the service, inserting the post and inserting
   the post distribution.
 
+  WARNING: this function does NOT recursively insert replied to tweets, or quoted tweets. It's
+  expected that some other system handles walking the tree of tweets to deal with all that. This is,
+  ultimately, to work around the garbage Twitter rate limits.
+
   """
 
   _tw = insert_twitter(session)
   try:
-    poster = insert_user(session, tweet.user)
+    poster = tweet.user
+    if not isinstance(poster, User):
+      poster = User.NewFromJsonDict(poster)
+    poster = insert_user(session, poster)
   except AssertionError as e:
     print("Encountered exception", e, "Processing tweet", tweet)
     return None
 
-  therad = None
-  if tweet.in_reply_to_status_id:
-    thread = session.query(Post)\
-                    .filter_by(external_id=twitter_external_tweet_id(tweet.in_reply_to_status_id))\
-                    .first()
-  elif tweet.retweeted_status:
-    thread = insert_tweet(session, twitter_api, tweet.retweeted_status)
+  dupe = session.query(Post)\
+                .filter_by(external_id=twitter_external_tweet_id(tweet.id))\
+                .first()
+  # We're in a monoid here, return existing records.
+  if dupe and dupe.text:
+    return dupe
 
-  post = get_or_create(session, Post,
-                       text=_get_tweet_text(tweet),
-                       external_id=twitter_external_tweet_id(tweet.id_str),
-                       poster=poster,
-                       when=aget(datetime.strptime(tweet.created_at, _tw_datetime_pattern)),
-                       more=tweet.AsDict())
+  # There's a dummy record in place, flesh it out
+  elif dupe:
+    dupe.text = _get_tweet_text(tweet)
+    dupe.more = tweet.AsDict()
+    session.add(dupe)
+    session.commit()
+    return dupe
 
-  for user in tweet.user_mentions:
-    get_or_create(session, PostDistribution,
-                  post=post,
-                  recipient=insert_user_from_json(twitter_api, session, user),
-                  rel="to")
+  # We're inserting a new tweet here...
+  else:
+    post = get_or_create(session, Post,
+                         text=_get_tweet_text(tweet),
+                         external_id=twitter_external_tweet_id(tweet.id_str),
+                         poster=poster,
+                         when=aget(datetime.strptime(tweet.created_at, _tw_datetime_pattern)),
+                         more=tweet.AsDict())
 
-  session.commit()
+    for user in tweet.user_mentions:
+      get_or_create(session, PostDistribution,
+                    post=post,
+                    recipient=insert_user(session, User(id=user.id)),
+                    rel="to")
 
-  return post
+    if tweet.in_reply_to_status_id:
+      get_or_create(session, PostRelationship,
+                    left=post,
+                    right=_tweet_or_dummy(session, tweet.in_reply_to_status_id),
+                    rel="reply-to")
+
+    if tweet.quoted_status_id:
+      get_or_create(session, PostRelationship,
+                    left=post,
+                    right=_tweet_or_dummy(session, tweet.quoted_status_id),
+                    rel="quotes")
+
+    session.commit()
+
+    return post

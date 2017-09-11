@@ -2,6 +2,8 @@
 A simple durable queue backed by Redis.
 """
 
+from uuid import uuid4
+
 
 class WorkItem(object):
   """
@@ -103,3 +105,6 @@ class WorkQueue(object):
       return WorkItem(self._conn, self._inflight, self._key, item_or_id,
                       indirect=self._indirect,
                       decoder=self._decoder)
+
+  def __len__(self):
+    return self._conn.llen(self._key)

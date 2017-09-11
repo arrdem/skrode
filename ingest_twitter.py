@@ -3,14 +3,20 @@ A quick and dirty script to ingest my live Twitter feed.
 """
 
 import argparse
-import sys
+import json
 import signal
+import sys
+import time
+from threading import Event, Thread
 
-from bbdb import schema, twitter as bt, config, make_session_factory, personas
+from bbdb import twitter as bt
+from bbdb.schema import Post
+from bbdb import config, make_session_factory, rds_for_config
+from bbdb.redis.workqueue import WorkQueue
 
-import arrow
 from twitter.models import Status
 from twitter.error import TwitterError
+
 
 args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
@@ -18,37 +24,155 @@ args.add_argument("-c", "--config",
                   default="config.yml")
 
 
-if __name__ == '__main__':
-  opts = args.parse_args(sys.argv[1:])
+def have_tweet(session, id):
+  """Get the Post for a Tweet ID, or None if it doesn't exist yet."""
+  return session.query(Post)\
+                .filter_by(external_id=bt.twitter_external_tweet_id(id))\
+                .first()
 
+
+def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
+  """Actually ingest a single tweet, dealing with the required enqueuing."""
+
+  if tweet.retweeted_status:
+    # We don't actually care about retweets, they aren't original content.
+    # Just insert the original.
+    ingest_tweet(session, rds, twitter_api, tweet_queue, tweet.retweeted_status)
+
+  else:
+    print("[DEBUG]", bt.insert_tweet(session, twitter_api, tweet))
+
+    if tweet.in_reply_to_status_id:
+      # This tweet is a reply. It links to some other tweet. Or possibly tweets depending on the
+      # link content which may link many statuses. However Twitter only considers one status to
+      # be the "reply" target. Create a "reply_to" relationship for the post we're inserting by
+      # inserting its parent post(s) (recursively!)
+      thread_id = str(tweet.in_reply_to_status_id)
+      if not have_tweet(session, thread_id):
+        # FIXME: insert status ID into queue for later processing
+        tweet_queue.put(thread_id)
+
+    if tweet.quoted_status:
+      # This is a quote tweet (possibly subtweet or snarky reply, quote tweets have different
+      # broadcast mechanics).
+      ingest_tweet(session, rds, twitter_api, tweet_queue, tweet.quoted_status)
+
+    for url in tweet.urls or []:
+      tweet_id = bt.tweet_id_from_url(url.expanded_url)
+      if tweet_id and not have_tweet(session, tweet_id):
+        tweet_queue.put(tweet_id)
+
+
+def ingest_tweet_queue(shutdown_event, session, rds, twitter_api, tweet_queue):
+  """Worker thead which will ingest tweets by ID from a redis queue until the event becomes set."""
+
+  while not shutdown_event.is_set():
+    item = tweet_queue.get()
+    if item is not None:
+      with item as status_id:
+        if not have_tweet(session, status_id):
+          try:
+            ingest_tweet(session, rds, twitter_api, tweet_queue,
+                         twitter_api.GetStatus(status_id=status_id))
+          except TwitterError as e:
+            # This probably means that either:
+            # 1) I'm not allowed to see the content because the user is private
+            # 2) The tweet has been deleted
+            #
+            # Either way, just warn and act as if the ingest succeeded.
+            print("[WARN]", e)
+      continue
+    else:
+      # There was nothing to do, wait, don't heat up the room.
+      time.sleep(5)
+
+
+def ingest_twitter_stream(shutdown_event, session, rds, twitter_api, tweet_queue, stream):
+  """
+  Ingest a Twitter stream, enqueuing tweets and users for eventual processing.
+  """
+
+  def _ingest_event(event):
+    """Helper function which does the individual inserts.
+
+    Used to factor inserts like retweets and quotes which may contain their substructures directly,
+    and thus avoid needing to become queued and get processed from a work queue.
+
+    """
+
+    if event and event.get("event"):
+      # This is the case of a non-message event
+      print("[INFO]", str(event))
+
+    elif event and "id" in event and "user" in event:
+      if "extended_tweet" in event:
+        # This is the case of having gotten a new "extended" tweet.
+        # Need to munge the text representation.
+        #
+        # And by munge I just mean copy, because the twitter-python driver drops this on the floor
+        event["text"] = event["extended_tweet"]["full_text"]
+
+      ingest_tweet(session, rds, twitter_api, tweet_queue, Status.NewFromJsonDict(event))
+
+  with open("log.json", "a") as f:
+    for event in stream:
+      _ingest_event(event)
+
+      f.write(json.dumps(event) + "\n")
+
+      if shutdown_event.is_set():
+        break
+
+
+def main():
+  # Opts
+  ########################################
+  opts = args.parse_args(sys.argv[1:])
   bbdb_config = config.BBDBConfig(config=opts.config)
 
+  # SQL
+  ########################################
   session_factory = make_session_factory(config=bbdb_config)
+  session = session_factory()
 
+  # Redis
+  ########################################
+  rds = rds_for_config(config=bbdb_config)
+  tweet_queue = WorkQueue(rds, "/queue/twitter/tweets")
+  # user_queue = WorkQueue(rds, "/queue/twitter/users")
+
+  # Twitter
+  ########################################
   twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
-  current_user = twitter_api.VerifyCredentials()
+  twitter_stream = twitter_api.GetUserStream(withuser="followings",
+                                             stall_warnings=True,
+                                             replies='all')
 
+  # Signal handlers
+  ########################################
   # Establish signal handlers so that we'll run and shut down gracefully
-  live = True
+  shutdown = Event()
 
   def _handler(signum, frame):
-    global live
-    live = False
+    shutdown.set()
 
   for sig in (signal.SIGINT,):
     signal.signal(sig, _handler)
 
-  # Ingest my Twitter stream
-  while live:
-    session = session_factory()
+  stream_thread = Thread(target=ingest_twitter_stream,
+                         args=(shutdown, session, rds, twitter_api, tweet_queue, twitter_stream)
+  ).start()
 
-    # api.GetStreamFilter will return a generator that yields one status
-    # message (i.e., Tweet) at a time as a JSON dictionary.
-    for tweet in map(Status.NewFromJsonDict,
-                     twitter_api.GetStreamFilter(follow=list(
-                       str(id) for id in twitter_api.GetFriendIDs(user_id=current_user.id)))):
-      if tweet:
-        print(bt.insert_tweet(session, twitter_api, tweet))
+  queue_thread = Thread(target=ingest_tweet_queue,
+                        args=(shutdown, session, rds, twitter_api, tweet_queue)
+  ).start()
 
-      if not live:
-        break
+  while not shutdown.is_set():
+    count = len(tweet_queue)
+    if count != 0:
+      print("[INFO] {} items in the tweet queue".format(count))
+    time.sleep(5)
+
+
+if __name__ == "__main__":
+  main()
