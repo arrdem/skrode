@@ -23,12 +23,16 @@ args.add_argument("-f", "--fast", dest="fast",
 args.add_argument("-r", "--refresh",
                   dest="fast",
                   action="store_false")
+args.add_argument("-c", "--config",
+                  dest="config",
+                  default="config.yml")
 
 
 if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
-  bbdb_config = config.BBDBConfig()
+  bbdb_config = config.BBDBConfig(opts.config)
 
+  factory = make_session_factory(config=bbdb_config)
   session = factory()
 
   requests_session = requests.Session()
@@ -44,7 +48,7 @@ if __name__ == "__main__":
     random.shuffle(users)
 
     bar = progressbar.ProgressBar(widgets=[
-      " [", progressbar.Timer(), "] ",
+      "[", progressbar.Timer(), "] ",
       progressbar.Bar(),
       " (", progressbar.ETA(), ") ",
     ])

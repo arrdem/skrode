@@ -6,6 +6,7 @@ from __future__ import absolute_import
 
 import re
 from datetime import datetime
+import traceback
 
 import twitter
 from arrow import get as aget
@@ -238,19 +239,18 @@ def insert_tweet(session, twitter_api, tweet):
     if not isinstance(poster, User):
       poster = User.NewFromJsonDict(poster)
     poster = insert_user(session, poster)
+    assert isinstance(poster, Account)
   except AssertionError as e:
-    print("Encountered exception", e, "Processing tweet", tweet)
+    print("Encountered exception", repr(e), traceback.format_exc(), "Processing tweet", tweet)
     return None
 
   dupe = session.query(Post)\
                 .filter_by(external_id=twitter_external_tweet_id(tweet.id))\
                 .first()
-  # We're in a monoid here, return existing records.
-  if dupe and dupe.text:
-    return dupe
-
-  # There's a dummy record in place, flesh it out
-  elif dupe:
+  # There's a dummy record in place, flesh it out. We're in a monoid here.
+  if dupe:
+    dupe.poster = poster
+    dupe.when = aget(datetime.strptime(tweet.created_at, _tw_datetime_pattern))
     dupe.text = _get_tweet_text(tweet)
     dupe.more = tweet.AsDict()
     session.add(dupe)
@@ -259,12 +259,13 @@ def insert_tweet(session, twitter_api, tweet):
 
   # We're inserting a new tweet here...
   else:
-    post = get_or_create(session, Post,
-                         text=_get_tweet_text(tweet),
-                         external_id=twitter_external_tweet_id(tweet.id_str),
-                         poster=poster,
-                         when=aget(datetime.strptime(tweet.created_at, _tw_datetime_pattern)),
-                         more=tweet.AsDict())
+    post = Post(service=_tw,
+                text=_get_tweet_text(tweet),
+                external_id=twitter_external_tweet_id(tweet.id_str),
+                poster=poster,
+                when=aget(datetime.strptime(tweet.created_at, _tw_datetime_pattern)),
+                more=tweet.AsDict())
+    session.add(post)
 
     for user in tweet.user_mentions:
       get_or_create(session, PostDistribution,

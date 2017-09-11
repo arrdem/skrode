@@ -5,7 +5,7 @@ BBDB schema
 import uuid
 
 from sqlalchemy import (CheckConstraint, Column, ForeignKey, Integer, Unicode,
-                        column)
+                        column, Boolean)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -250,6 +250,10 @@ class List(Base, UUIDed, Named):
 class Post(Base, UUIDed):
   """Used to record a post by an account."""
 
+  # Lists are hosted on a service
+  service_id = Column(UUID, ForeignKey("service.id"))
+  service = relationship("Service")
+
   # Who posted
   poster_id = Column(UUID, ForeignKey("account.id"), index=True)
   poster = relationship("Account")
@@ -264,11 +268,13 @@ class Post(Base, UUIDed):
                           secondaryjoin="Post.id==PostRelationship.right_id")
 
   # Who all saw it
-  distribution = relationship("PostDistribution")
+  distribution = relationship("PostDistribution", cascade="all, delete-orphan")
   when = Column(ArrowType)
 
   # The post itself
   text = Column(Unicode)
+
+  tombstone = Column(Boolean, default=False)
 
   def __repr__(self):
     return ("<Post id=%r, poster_id=%r, poster=%r, at=%r, text=%r>"

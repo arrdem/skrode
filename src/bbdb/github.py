@@ -32,9 +32,16 @@ def external_id(username):
 def insert_user(session, username, persona=None, when=None):
   when = when or now()
 
-  gh_user = get_or_create(session, Account,
-                          service=insert_github(session),
-                          external_id=external_id(username))
+  gh_user = session.query(Account)\
+                   .filter_by(service=insert_github(session),
+                              external_id=external_id(username))\
+                   .first()
+  if not gh_user:
+    gh_user = Account(service=insert_github(session),
+                      external_id=external_id(username),
+                      persona=Persona())
+    session.add(gh_user)
+
   gh_user.when = when
   if gh_user.persona and persona:
     merge_left(session, persona, gh_user.persona)

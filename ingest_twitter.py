@@ -64,6 +64,11 @@ def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
       if tweet_id and not have_tweet(session, tweet_id):
         tweet_queue.put(tweet_id)
 
+    for user in tweet.user_mentions or []:
+      if not isinstance(user, User):
+        user = User.NewFromJsonDict(user)
+      print("[DEBUG]", bt.insert_user(session, user))
+
 
 def ingest_tweet_queue(shutdown_event, session, rds, twitter_api, tweet_queue):
   """Worker thead which will ingest tweets by ID from a redis queue until the event becomes set."""
@@ -81,8 +86,12 @@ def ingest_tweet_queue(shutdown_event, session, rds, twitter_api, tweet_queue):
             # 1) I'm not allowed to see the content because the user is private
             # 2) The tweet has been deleted
             #
-            # Either way, just warn and act as if the ingest succeeded.
-            print("[WARN]", e)
+            # Either way, just warn and delete the record if one exists.
+            print("[WARN] https://twitter.com/i/status/{}".format(status_id.decode()), e)
+            dummy = bt._tweet_or_dummy(session, status_id)
+            dummy.tombstone = True
+            session.add(dummy)
+            session.flush()
       continue
     else:
       # There was nothing to do, wait, don't heat up the room.
@@ -124,13 +133,11 @@ def ingest_twitter_stream(shutdown_event, session, rds, twitter_api, tweet_queue
       # For compliance with the developer rules.
       # Sadly.
 
-      session.query(Post)\
-             .filter_by(
-               external_id=bt.twitter_external_tweet_id(
-                 event.get("delete")
-                      .get("status")
-                      .get("id")))\
-             .delete()
+      entity = bt._tweet_or_dummy(session, event.get("delete")
+                                  .get("status")
+                                  .get("id"))
+      entity.tombstone = True
+      session.add(entity)
       session.commit()
 
     elif event and "id" in event and "user" in event:
@@ -150,6 +157,7 @@ def ingest_twitter_stream(shutdown_event, session, rds, twitter_api, tweet_queue
       _ingest_event(event)
 
       f.write(json.dumps(event) + "\n")
+      f.flush()
 
       if shutdown_event.is_set():
         break
@@ -169,8 +177,8 @@ def main():
   # Redis
   ########################################
   rds = rds_for_config(config=bbdb_config)
-  tweet_queue = WorkQueue(rds, "/queue/twitter/tweets")
-  user_queue = WorkQueue(rds, "/queue/twitter/users")
+  tweet_queue = WorkQueue(rds, "/queue/twitter/tweets", inflight="/queue/twitter/tweets/inflight")
+  user_queue = WorkQueue(rds, "/queue/twitter/users", inflight="/queue/twitter/users/inflight")
 
   # Twitter
   ########################################
@@ -202,6 +210,14 @@ def main():
     count = len(tweet_queue)
     if count != 0:
       print("[INFO] {} items in the tweet queue".format(count))
+
+    for post_id, in session.query(Post.external_id)\
+                           .filter(Post.poster==None,
+                                   Post.service==bt.insert_twitter(session),
+                                   Post.tombstone==False)\
+                          .all():
+      tweet_queue.put(post_id.split(":")[1])
+
     time.sleep(5)
 
 

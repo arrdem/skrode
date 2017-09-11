@@ -4,7 +4,6 @@ Helpers for working with (merging/splitting) personas.
 
 from bbdb import schema
 from bbdb.schema import get_or_create
-from bbdb.twitter import insert_user
 from bbdb.telephones import insert_phone_number
 
 from sqlalchemy import func
@@ -111,6 +110,7 @@ def create_persona(session, twitter_api,
       if handle:
         merge_left(session, persona, handle.persona)
       else:
+        from bbdb.twitter import insert_user
         insert_user(session, user, persona)
 
   session.commit()
