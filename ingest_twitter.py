@@ -14,7 +14,7 @@ from bbdb.schema import Post
 from bbdb import config, make_session_factory, rds_for_config
 from bbdb.redis.workqueue import WorkQueue
 
-from twitter.models import Status
+from twitter.models import Status, User
 from twitter.error import TwitterError
 
 
@@ -38,6 +38,8 @@ def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
     # We don't actually care about retweets, they aren't original content.
     # Just insert the original.
     ingest_tweet(session, rds, twitter_api, tweet_queue, tweet.retweeted_status)
+
+    print("[DEBUG]", bt.insert_user(session, tweet.user))
 
   else:
     print("[DEBUG]", bt.insert_tweet(session, twitter_api, tweet))
@@ -102,7 +104,34 @@ def ingest_twitter_stream(shutdown_event, session, rds, twitter_api, tweet_queue
 
     if event and event.get("event"):
       # This is the case of a non-message event
-      print("[INFO]", str(event))
+
+      # FIXME: see other interesting cases here:
+      # https://dev.twitter.com/streaming/overview/messages-types
+
+      print("[INFO]", json.dumps(event))
+
+      if event.get("source"):
+        print("[INFO]", bt.insert_user(session, User.NewFromJsonDict(event.get("source"))))
+
+      if event.get("target"):
+        print("[INFO]", bt.insert_user(session, User.NewFromJsonDict(event.get("target"))))
+
+      if event.get("event") in ["favorite", "unfavorite", "quoted_tweet"]:
+        # We're ingesting a tweet here
+        _ingest_event(event.get("target_object"))
+
+    elif event.get("delete"):
+      # For compliance with the developer rules.
+      # Sadly.
+
+      session.query(Post)\
+             .filter_by(
+               external_id=bt.twitter_external_tweet_id(
+                 event.get("delete")
+                      .get("status")
+                      .get("id")))\
+             .delete()
+      session.commit()
 
     elif event and "id" in event and "user" in event:
       if "extended_tweet" in event:
@@ -113,6 +142,8 @@ def ingest_twitter_stream(shutdown_event, session, rds, twitter_api, tweet_queue
         event["text"] = event["extended_tweet"]["full_text"]
 
       ingest_tweet(session, rds, twitter_api, tweet_queue, Status.NewFromJsonDict(event))
+    else:
+      print("[DEBUG]", json.dumps(event))
 
   with open("log.json", "a") as f:
     for event in stream:
@@ -139,7 +170,7 @@ def main():
   ########################################
   rds = rds_for_config(config=bbdb_config)
   tweet_queue = WorkQueue(rds, "/queue/twitter/tweets")
-  # user_queue = WorkQueue(rds, "/queue/twitter/users")
+  user_queue = WorkQueue(rds, "/queue/twitter/users")
 
   # Twitter
   ########################################

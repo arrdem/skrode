@@ -6,7 +6,8 @@ A quick and dirty script to crawl my Twitter friends & followers, populating the
 import argparse
 import sys
 
-from bbdb import schema, twitter as bt, config, make_session_factory, personas
+from bbdb.redis.workqueue import WorkQueue
+from bbdb import schema, twitter as bt, config, make_session_factory, personas, rds_for_config
 
 import arrow
 from twitter.models import User
@@ -24,37 +25,44 @@ args.add_argument("-R", "--no-followers",
 args.add_argument("-f", "--file",
                   dest="filename",
                   default=None)
+args.add_argument("-c", "--config",
+                  dest="config",
+                  default="config.yml")
 
-factory = make_session_factory()
+def ingest_users(twitter_api, session, users):
+  twitter_user = None
+  line = None
+  for screen_name in users:
+    try:
+      twitter_user = twitter_api.GetUser(screen_name=screen_name)
+      if isinstance(twitter_user, dict):
+        twitter_user = User.NewFromJsonDict(twitter_user)
 
-bbdb_config = config.BBDBConfig()
+      persona = personas.personas_by_name(session, line, one=True, exact=True)
+      print(bt.insert_user(session, twitter_user, persona))
+    except TwitterError as e:
+      print(line, line, e)
+    except AssertionError as e:
+      print(line, twitter_user, e)
+      raise e
 
-twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
 
-if __name__ == "__main__":
+def main():
   opts = args.parse_args(sys.argv[1:])
 
+  bbdb_config = config.BBDBConfig(config=opts.config)
+
+  # SQL
+  ########################################
+  factory = make_session_factory(config=bbdb_config)
   session = factory()
 
+  # Twitter
+  ########################################
+  twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
+
   if opts.filename:
-    with open(opts.filename) as f:
-      twitter_user = None
-      line = None
-      for line in f:
-        line = line.strip()
-        try:
-          twitter_user = twitter_api.GetUser(screen_name=line)
-          if isinstance(twitter_user, dict):
-            twitter_user = User.NewFromJsonDict(twitter_user)
-
-          persona = personas.personas_by_name(session, line, one=True, exact=True)
-          print(bt.insert_user(session, twitter_user, persona))
-        except TwitterError as e:
-          print(line, line, e)
-        except AssertionError as e:
-          print(line, twitter_user, e)
-          raise e
-
+    ingest_users(twitter_api, session, [l.strip() for l in open(opts.filename).readlines()])
   else:
     if opts.user:
       user = twitter_api.GetUser(screen_name=opts.user)
@@ -78,3 +86,7 @@ if __name__ == "__main__":
     finally:
       session.flush()
       session.close()
+
+
+if __name__ == "__main__":
+  main()
