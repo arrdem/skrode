@@ -34,6 +34,8 @@ def have_tweet(session, id):
 def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
   """Actually ingest a single tweet, dealing with the required enqueuing."""
 
+  # Just in case
+  session.rollback()
   if tweet.retweeted_status:
     # We don't actually care about retweets, they aren't original content.
     # Just insert the original.
@@ -199,11 +201,11 @@ def main():
     signal.signal(sig, _handler)
 
   stream_thread = Thread(target=ingest_twitter_stream,
-                         args=(shutdown, session, rds, twitter_api, tweet_queue, twitter_stream)
+                         args=(shutdown, session_factory(), rds, twitter_api, tweet_queue, twitter_stream)
   ).start()
 
   queue_thread = Thread(target=ingest_tweet_queue,
-                        args=(shutdown, session, rds, twitter_api, tweet_queue)
+                        args=(shutdown, session_factory(), rds, twitter_api, tweet_queue)
   ).start()
 
   while not shutdown.is_set():

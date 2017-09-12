@@ -8,7 +8,7 @@ import re
 
 from bbdb.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
                          get_or_create)
-from bbdb.services import mk_service
+from bbdb.services import mk_service, mk_insert_user
 from bbdb.personas import merge_left
 
 from arrow import utcnow as now
@@ -29,30 +29,4 @@ def external_id(username):
   return "github:%s" % username
 
 
-def insert_user(session, username, persona=None, when=None):
-  when = when or now()
-
-  gh_user = session.query(Account)\
-                   .filter_by(service=insert_github(session),
-                              external_id=external_id(username))\
-                   .first()
-  if not gh_user:
-    gh_user = Account(service=insert_github(session),
-                      external_id=external_id(username),
-                      persona=Persona())
-    session.add(gh_user)
-
-  gh_user.when = when
-  if gh_user.persona and persona:
-    merge_left(session, persona, gh_user.persona)
-  else:
-    gh_user.persona = persona = persona or Persona()
-
-  get_or_create(session, Name,
-                name=username,
-                account=gh_user,
-                persona=persona)
-
-  session.commit()
-  session.refresh(gh_user)
-  return gh_user
+insert_user = mk_insert_user(insert_github, external_id)

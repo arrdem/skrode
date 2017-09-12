@@ -6,7 +6,7 @@ from bbdb import schema
 from bbdb.schema import get_or_create
 from bbdb.telephones import insert_phone_number
 
-from sqlalchemy import func
+from sqlalchemy import func, inspect
 
 
 def insert_name(session, persona, name):
@@ -47,13 +47,16 @@ def merge_left(session, l, r):
     return
 
   for account in r.accounts:
-    account.persona_id = l.id
-    session.add(account)
+    if not inspect(account).deleted:
+      account.persona_id = l.id
+      session.add(account)
+
   session.commit()
 
   for name in r.linked_names:
-    name.persona_id = l.id
-    session.add(name)
+    if not inspect(name).deleted:
+      name.persona_id = l.id
+      session.add(name)
   session.commit()
 
   # This is now safe, and if it isn't because there are orphans then it'll explode

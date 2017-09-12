@@ -48,7 +48,7 @@ if __name__ == "__main__":
     random.shuffle(users)
 
     bar = progressbar.ProgressBar(widgets=[
-      "[", progressbar.Timer(), "] ",
+      " [", progressbar.Timer(), "] ",
       progressbar.Bar(),
       " (", progressbar.ETA(), ") ",
     ])
@@ -75,7 +75,9 @@ if __name__ == "__main__":
           delay = delay + 3
           time.sleep(delay)
 
-      print(insert_user(session, twitter_api, user, fast=opts.fast))
+      print(insert_user(session, twitter_api, user,
+                        persona=eu.persona if eu else None,
+                        when=eu.when if eu else None))
 
   finally:
     session.flush()

@@ -20,7 +20,6 @@ def normalize_url(url):
 def mk_service(name, urls, normalize=True):
   """Returns a partial function for getting/creating a Service record for a name and a domain."""
 
-  @once
   def helper(session):
     service = session.query(schema.Service).filter(schema.Service.name == name.lower()).first()
     if not service:
@@ -56,13 +55,15 @@ def mk_insert_user(service_ctor, external_id_fn):
       account = schema.Account(service=_svc, external_id=_extid)
       session.add(account)
 
-    account.when = when
+    if when:
+      account.when = when
+
     if account.persona and persona:
       from bbdb.personas import merge_left
       merge_left(session, persona, account.persona)
 
     else:
-      account.persona = persona = persona or schema.Persona()
+       persona = account.persona = persona or schema.Persona()
 
     schema.get_or_create(session, schema.Name,
                          name=external_id,
