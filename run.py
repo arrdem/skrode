@@ -1,5 +1,125 @@
-"""
-Run the entire BBDB topology.
+"""Run the entire BBDB topology.
+
+By making aggressive use of YAML labels and throwing in a touch of metaprogramming with some eval
+this script provides what is best compared to Docker's compose functionality in that it allows for
+the concise description of a set of services to be run as processes, the queues from which they will
+be fed or into which they will feed, and then provides watchdogging / restarts until a SIGINT
+signals that the entire assemblage should shut down.
+
+Example-ish configuration, note use of !bbdb/* ctors, provided by bbdb.config.
+
+.. code-block:: yaml
+
+   ---
+   twitter:
+     &twitter
+     !bbdb/twitter
+     consumer_key: ...
+     consumer_secret: ...
+     access_token_key: ...
+     access_token_secret: ...
+     timeout: 90
+     sleep_on_rate_limit: True
+
+   sql:
+     &sql
+     !bbdb/sql
+     dialect: postgresql+psycopg2
+     hostname: localhost
+     port: 5432
+     username: ....
+     password: ....
+     database: bbdb
+
+   # The Redis database connections should go to
+   redis:
+     &redis
+     !bbdb/redis
+     host: localhost
+     port: 6379
+     db: 0
+
+   # The queue topology
+   ################################################################################
+   twitter_username_queue:
+     &twitter_username_queue
+     !bbdb/queue
+     conn: *redis
+     key: /queue/twitter/user_names/ready
+     inflight: /queue/twitter/user_names/inflight
+
+   twitter_user_id_queue:
+     &twitter_user_id_queue
+     !bbdb/queue
+     conn: *redis
+     key: /queue/twitter/user_ids/ready
+     inflight: /queue/twitter/user_ids/inflight
+
+   twitter_user_queue:
+     &twitter_user_queue
+     !bbdb/queue
+     conn: *redis
+     key: /queue/twitter/users/ready
+     inflight: /queue/twitter/users/inflight
+
+   # Tweets can come in both by ID and as full JSON blobs..
+   tweet_id_queue:
+     &tweet_id_queue
+     !bbdb/queue
+     conn: *redis
+     key: /queue/twitter/tweet_ids/ready
+     inflight: /queue/twitter/tweet_ids/inflight
+
+   tweet_queue:
+     &tweet_queue
+     !bbdb/queue
+     conn: *redis
+     key: /queue/twitter/tweets/ready
+     inflight: /queue/twitter/tweets/inflight
+
+   # Worker queue topology
+   ################################################################################
+   twitter_home_timeline:
+     type: custom
+     target: ingest_twitter.user_stream
+     # Nominal args
+     session: *sql
+     twitter_api: *twitter
+     tweet_queue: *tweet_queue
+     user_queue: *twitter_user_id_queue
+     # GetUserStream kwargs
+     withuser: followings
+     stall_warnings: True
+     replies: all
+     include_keepalive: True
+
+   twitter_user_ids:
+     type: map
+     target: ingest_twitter.ingest_user
+     source: *twitter_user_id_queue
+     session: *sql
+     twitter_api: *twitter
+
+   twitter_empty_tweets:
+     type: custom
+     target: ingest_twitter.collect_empty_tweets
+     session: *sql
+     tweet_id_queue: *tweet_id_queue
+
+   twitter_tweet_ids:
+     type: map
+     target: ingest_twitter.ingest_tweet_id
+     source: *tweet_id_queue
+     session: *sql
+     twitter_api: *twitter
+     tweet_id_queue: *tweet_id_queue
+
+   workers:
+     - twitter_home_timeline
+     - twitter_user_ids
+     - twitter_empty_tweets
+     - twitter_tweet_ids
+
 """
 
 import argparse
