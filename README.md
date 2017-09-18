@@ -88,52 +88,52 @@ names:
 
 accounts:
   - service: <Service 'twitter'>
-    foreign key: twitter+user:883521901670178818
-    names:
-      - @arrdemsays
-      - ArrdemSays
+	foreign key: twitter+user:883521901670178818
+	names:
+	  - @arrdemsays
+	  - ArrdemSays
 
 
 ---
 human: 62cef37c-e9fd-4f18-8f90-6d0500296037
 personas:
   - persona: 1ac45ba0-d0f5-484f-8d6b-fa10ac1bd688
-    names:
-      - arrdem
-      - 33e1116b6ef2d7431684ae11c7f91200
-      - rdmckenzie
-      - @arrdem
-      - Reid McKenzie
-    
-    accounts:
-      - service: <Service 'hackernews'>
-        foreign key: hackernews+user:rdmckenzie
-        names:
-          - rdmckenzie
-    
-      - service: <Service 'keybase'>
-        foreign key: keybase+user:33e1116b6ef2d7431684ae11c7f91200
-        names:
-          - 33e1116b6ef2d7431684ae11c7f91200
-          - arrdem
-    
-      - service: <Service 'lobsters'>
-        foreign key: lobsters+user:arrdem
-        names:
-          - arrdem
-    
-      - service: <Service 'github'>
-        foreign key: github+user:arrdem
-        names:
-          - arrdem
-    
-      - service: <Service 'twitter'>
-        foreign key: twitter+user:389468789
-        names:
-          - @arrdem
-          - Reid McKenzie
+	names:
+	  - arrdem
+	  - 33e1116b6ef2d7431684ae11c7f91200
+	  - rdmckenzie
+	  - @arrdem
+	  - Reid McKenzie
 
-      ...
+	accounts:
+	  - service: <Service 'hackernews'>
+		foreign key: hackernews+user:rdmckenzie
+		names:
+		  - rdmckenzie
+
+	  - service: <Service 'keybase'>
+		foreign key: keybase+user:33e1116b6ef2d7431684ae11c7f91200
+		names:
+		  - 33e1116b6ef2d7431684ae11c7f91200
+		  - arrdem
+
+	  - service: <Service 'lobsters'>
+		foreign key: lobsters+user:arrdem
+		names:
+		  - arrdem
+
+	  - service: <Service 'github'>
+		foreign key: github+user:arrdem
+		names:
+		  - arrdem
+
+	  - service: <Service 'twitter'>
+		foreign key: twitter+user:389468789
+		names:
+		  - @arrdem
+		  - Reid McKenzie
+
+	  ...
 ```
 
 The `ingest_twitter.py` script connects to the Twitter streaming API, the configured SQL database
