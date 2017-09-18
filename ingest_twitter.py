@@ -199,6 +199,7 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
 
     except (TimeoutException, rex.ReadTimeout, rex.ConnectTimeout):
       stream = None
+      http_session.close()
       http_session = None
       log.warn("Resetting stream due to timeout...")
 
