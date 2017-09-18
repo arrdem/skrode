@@ -2,11 +2,10 @@
 A quick and dirty script to ingest my live Twitter feed.
 """
 
-import argparse
 import json
 import signal
 import time
-import logging as log
+import logging
 
 from bbdb import twitter as bt
 from bbdb.schema import Account, Post
@@ -17,7 +16,7 @@ from requests import Session
 from requests import exceptions as rex
 
 
-log = log.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 def have_user(session, id):
@@ -31,6 +30,14 @@ def ingest_user(user_id, session, twitter_api):
   u = have_user(session, user_id)
   if u is None:
     user = twitter_api.GetUser(user_id=user_id)
+    log.info("Created user %s", bt.insert_user(session, user))
+  else:
+    log.debug("Already had user %s", u)
+
+
+def ingest_user_object(user, session):
+  u = have_user(session, user.id)
+  if u is None:
     log.info("Created user %s", bt.insert_user(session, user))
   else:
     log.debug("Already had user %s", u)
@@ -54,7 +61,7 @@ def ingest_tweet(tweet, session, twitter_api, tweet_id_queue):
     # Just insert the original.
     ingest_tweet(tweet.retweeted_status, session, twitter_api, tweet_id_queue)
 
-    log.info(bt.insert_user(session, tweet.user))
+    ingest_user_object(tweet.user, session)
 
   else:
     log.info(bt.insert_tweet(session, twitter_api, tweet))
@@ -82,13 +89,13 @@ def ingest_tweet(tweet, session, twitter_api, tweet_id_queue):
     for user in tweet.user_mentions or []:
       if not isinstance(user, User):
         user = User.NewFromJsonDict(user)
-      log.info(bt.insert_user(session, user))
+      ingest_user_object(user, session)
 
 
 def ingest_tweet_id(status_id, session, twitter_api, tweet_id_queue):
   """Mapped worker which will ingest tweets by ID."""
 
-  status_id = str(status_id) # Just to be sure...
+  status_id = str(status_id)  # Just to be sure...
 
   if not have_tweet(session, status_id):
     try:
@@ -124,10 +131,10 @@ def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
     # https://dev.twitter.com/streaming/overview/messages-types
 
     if stream_event.get("source"):
-      log.info(bt.insert_user(session, User.NewFromJsonDict(stream_event.get("source"))))
+      ingest_user_object(User.NewFromJsonDict(stream_event.get("source")), session)
 
     if stream_event.get("target"):
-      log.info(bt.insert_user(session, User.NewFromJsonDict(stream_event.get("target"))))
+      ingest_user_object(User.NewFromJsonDict(stream_event.get("target")), session)
 
     if stream_event.get("event") in ["favorite", "unfavorite", "quoted_tweet"]:
       # We're ingesting a tweet here
@@ -136,10 +143,9 @@ def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
   elif stream_event.get("delete"):
     # For compliance with the developer rules.
     # Sadly.
-    entity = bt._tweet_or_dummy(session,
-                                stream_event.get("delete")\
-                                            .get("status")\
-                                            .get("id"))
+    event_id = stream_event.get("delete").get("status").get("id")
+    log.warn("Honoring delete %s", event_id)
+    entity = bt._tweet_or_dummy(session, event_id)
     entity.tombstone = True
     session.add(entity)
     session.commit()

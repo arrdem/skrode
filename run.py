@@ -134,6 +134,9 @@ from queue import Queue, Empty
 
 from bbdb.config import BBDBConfig
 
+import colorlog
+
+log = None
 
 args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
@@ -192,7 +195,7 @@ def mk_sigint_event():
   event = threading.Event()
 
   def _sig_int(sig, frame):
-    logging.getLogger(__name__).fatal("Got SIGINT, shutting down")
+    log.fatal("Got SIGINT, shutting down")
     event.set()
 
   signal.signal(signal.SIGINT, _sig_int)
@@ -209,14 +212,21 @@ def worker(opts, target_name):
   event = mk_sigint_event()
 
   target = config.get(target_name).dict()
-  logging.info("Booting worker %r", target_name)
+  log.info("Booting worker %r", target_name)
   # We're gonna load up a single worker, and start running it.
   return WORKER_REGISTRY.get(target.get("type"))(event, **target)
 
 
 def main(opts):
-  logging.basicConfig(format="%(asctime)s %(levelname)s %(process)d %(name)s: %(message)s",
-                      level=logging.INFO)
+  handler = colorlog.StreamHandler()
+  handler.setFormatter(
+    colorlog.ColoredFormatter("%(log_color)s %(asctime)s %(levelname)s %(process)d %(module)s %(funcName)s: %(message)s"))
+
+  root_logger = logging.getLogger()
+  root_logger.addHandler(handler)
+  root_logger.setLevel(logging.INFO)
+
+  global log
   log = logging.getLogger(__name__)
 
   config = BBDBConfig(config=opts.config)
