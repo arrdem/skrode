@@ -30,17 +30,15 @@ def api_for_config(config, **kwargs):
       consumer_secret=config.twitter_api_secret,
       access_token_key=config.twitter_access_token,
       access_token_secret=config.twitter_access_secret,
-      cache=twitter._FileCache(config.twitter_cache_dir),
+      timeout=config.twitter_timeout,
       **kwargs
   )
-
-  _api.SetCacheTimeout(config.twitter_cache_timeout)
 
   return _api
 
 
 def twitter_external_user_id(fk):
-  return "twitter:{}".format(fk)
+  return "twitter+user:{}".format(fk)
 
 
 insert_twitter = mk_service("Twitter", ["http://twitter.com"])

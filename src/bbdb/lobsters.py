@@ -23,7 +23,7 @@ def lobsters_external_id(user_or_id):
   if isinstance(user_or_id, User):
     return lobsters_external_id(user_or_id.name)
   else:
-    return "lobsters:%s" % user_or_id
+    return "lobsters+user:%s" % user_or_id
 
 
 _insert_user = mk_insert_user(insert_lobsters, lobsters_external_id)

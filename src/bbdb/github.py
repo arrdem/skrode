@@ -26,7 +26,7 @@ def external_id(username):
   if m:
     username = m.group("username")
 
-  return "github:%s" % username
+  return "github+user:%s" % username
 
 
 insert_user = mk_insert_user(insert_github, external_id)

@@ -1,5 +1,5 @@
 """
-Helpers for dealing with github.com and gist.github.io
+Helpers for dealing with facebook.com
 """
 
 from __future__ import absolute_import
@@ -14,17 +14,16 @@ from bbdb.personas import merge_left
 from arrow import utcnow as now
 
 
-insert_reddit = mk_service("Reddit", ["http://reddit.com"])
+insert_reddit = mk_service("Facebook", ["http://facebook.com", "http://messenger.com"])
 
-_reddit_user_pattern = re.compile(r"(https?://)?(reddit.com)/u/(?P<username>[^/?]+)(/.+)?(&.+)?")
-
+_fb_user_pattern = re.compile(r"(https?://)?(facebook.com)/(?P<username>[^/?]+)(/.+)?(&.+)?")
 
 def external_id(username):
-  m = re.match(_reddit_user_pattern, username)
+  m = re.match(_fb_user_pattern, username)
   if m:
     username = m.group("username")
 
-  return "reddit+user:%s" % username
+  return "facebook+user:%s" % username
 
 
 insert_user = mk_insert_user(insert_reddit, external_id)

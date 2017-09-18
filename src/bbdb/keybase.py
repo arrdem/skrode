@@ -12,7 +12,7 @@ from bbdb.personas import merge_left
 insert_keybase = mk_service("Keybase", ["http://keybase.io"])
 
 def keybase_external_id(user_id):
-  return "keybase:{}".format(user_id)
+  return "keybase+user:{}".format(user_id)
 
 
 _insert_user = mk_insert_user(insert_keybase, keybase_external_id)
