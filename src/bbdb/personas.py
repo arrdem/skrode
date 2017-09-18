@@ -76,7 +76,7 @@ def link_personas_by_owner(session, *ps):
     if person:
       break
 
-  person = person or schema.Person()
+  person = person or schema.Human()
   session.add(person)
 
   for p in ps:
