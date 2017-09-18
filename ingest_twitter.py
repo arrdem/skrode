@@ -7,10 +7,11 @@ import json
 import signal
 import sys
 import time
+import logging as log
 from multiprocessing import Event, Process
 
 from bbdb import twitter as bt
-from bbdb.schema import Post
+from bbdb.schema import Account, Post
 from bbdb import config, make_session_factory, rds_for_config
 from bbdb.redis.workqueue import WorkQueue
 
@@ -23,6 +24,27 @@ args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
                   dest="config",
                   default="config.yml")
+
+
+def have_user(session, id):
+  """Get a Twitter account, or None if it doesn't exist yet."""
+  return session.query(Account)\
+                .filter_by(external_id=bt.twitter_external_user_id(id))\
+                .first()\
+
+
+def ingest_user_queue(shutdown_event, session, rds, twitter_api, user_queue):
+  session = session()
+
+  while not shutdown_event.is_set():
+    item = user_queue.get()
+    if item is not None:
+      with item as user_id:
+        if not have_user(session, user_id):
+          user = twitter_api.GetUser(user_id=user_id)
+          print("[DEBUG 'ingest_user_queue']", bt.insert_user(session, user))
+    else:
+      time.sleep(5)
 
 
 def have_tweet(session, id):
@@ -42,10 +64,10 @@ def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
     # Just insert the original.
     ingest_tweet(session, rds, twitter_api, tweet_queue, tweet.retweeted_status)
 
-    print("[DEBUG]", bt.insert_user(session, tweet.user))
+    log.debug(bt.insert_user(session, tweet.user))
 
   else:
-    print("[DEBUG]", bt.insert_tweet(session, twitter_api, tweet))
+    log.debug(bt.insert_tweet(session, twitter_api, tweet))
 
     if tweet.in_reply_to_status_id:
       # This tweet is a reply. It links to some other tweet. Or possibly tweets depending on the
@@ -70,7 +92,7 @@ def ingest_tweet(session, rds, twitter_api, tweet_queue, tweet):
     for user in tweet.user_mentions or []:
       if not isinstance(user, User):
         user = User.NewFromJsonDict(user)
-      print("[DEBUG]", bt.insert_user(session, user))
+      log.debug(bt.insert_user(session, user))
 
 
 def ingest_tweet_queue(shutdown_event, session, rds, twitter_api, tweet_queue):
@@ -92,7 +114,7 @@ def ingest_tweet_queue(shutdown_event, session, rds, twitter_api, tweet_queue):
             # 2) The tweet has been deleted
             #
             # Either way, just warn and delete the record if one exists.
-            print("[WARN] https://twitter.com/i/status/{}".format(status_id.decode()), e)
+            log.warn("https://twitter.com/i/status/{}".format(status_id.decode()), e)
             dummy = bt._tweet_or_dummy(session, status_id)
             dummy.tombstone = True
             session.add(dummy)
@@ -109,7 +131,7 @@ class TimeoutException(Exception):
 
 
 def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api, tweet_queue,
-                          stream_factory):
+                          user_queue, stream_factory):
   """
   Ingest a Twitter stream, enqueuing tweets and users for eventual processing.
   """
@@ -134,13 +156,13 @@ def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api,
 
       # FIXME: see other interesting cases here:
       # https://dev.twitter.com/streaming/overview/messages-types
-      print("[INFO]", json.dumps(event))
+      log.info(json.dumps(event))
 
       if event.get("source"):
-        print("[INFO]", bt.insert_user(sql_session, User.NewFromJsonDict(event.get("source"))))
+        log.info(bt.insert_user(sql_session, User.NewFromJsonDict(event.get("source"))))
 
       if event.get("target"):
-        print("[INFO]", bt.insert_user(sql_session, User.NewFromJsonDict(event.get("target"))))
+        log.info(bt.insert_user(sql_session, User.NewFromJsonDict(event.get("target"))))
 
       if event.get("event") in ["favorite", "unfavorite", "quoted_tweet"]:
         # We're ingesting a tweet here
@@ -149,7 +171,7 @@ def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api,
     elif event.get("delete"):
       # For compliance with the developer rules.
       # Sadly.
-      print("[INFO]", json.dumps(event))
+      log.info(json.dumps(event))
 
       entity = bt._tweet_or_dummy(sql_session, event.get("delete")
                                   .get("status")
@@ -167,8 +189,13 @@ def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api,
         event["text"] = event["extended_tweet"]["full_text"]
 
       ingest_tweet(sql_session, rds, twitter_api, tweet_queue, Status.NewFromJsonDict(event))
+
+    elif "friends" in event:
+      for friend in event.get("friends"):
+        user_queue.put(str(friend))
+
     else:
-      print("[DEBUG]", json.dumps(event))
+      log.info(json.dumps(event))
 
   stream = None
   http_session = None
@@ -186,7 +213,7 @@ def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api,
           _ingest_event(event)
           signal.alarm(90)
         else:
-          print("[DEBUG] keepalive....")
+          log.debug("keepalive....")
 
         if shutdown_event.is_set():
           break
@@ -199,7 +226,9 @@ def ingest_twitter_stream(shutdown_event, sql_session_factory, rds, twitter_api,
 
 
 def main():
-  # Opts
+  log.basicConfig(format='%(asctime)s %(levelname)s:%(message)s', level=log.DEBUG)
+
+# Opts
   ########################################
   opts = args.parse_args(sys.argv[1:])
   bbdb_config = config.BBDBConfig(config=opts.config)
@@ -213,7 +242,9 @@ def main():
   ########################################
   rds = rds_for_config(config=bbdb_config)
   tweet_queue = WorkQueue(rds, "/queue/twitter/tweets", inflight="/queue/twitter/tweets/inflight")
-  user_queue = WorkQueue(rds, "/queue/twitter/users", inflight="/queue/twitter/users/inflight")
+  user_queue = WorkQueue(rds, "/queue/twitter/users",
+                         inflight="/queue/twitter/users/inflight",
+                         decoder=lambda t: t.decode("utf-8"))
 
   # Twitter
   ########################################
@@ -239,11 +270,15 @@ def main():
 
   stream_thread = Process(target=ingest_twitter_stream,
                           args=(shutdown, session_factory, rds, twitter_api, tweet_queue,
-                                twitter_stream_factory)
+                                user_queue, twitter_stream_factory)
   ).start()
 
   queue_thread = Process(target=ingest_tweet_queue,
                          args=(shutdown, session_factory, rds, twitter_api, tweet_queue)
+  ).start()
+
+  user_thread = Process(target=ingest_user_queue,
+                        args=(shutdown, session_factory, rds, twitter_api, user_queue)
   ).start()
 
   while not shutdown.is_set():
