@@ -38,12 +38,8 @@ class BBDBConfig(object):
     return self._twitter["access_secret"]
 
   @property
-  def twitter_cache_dir(self):
-    return self._twitter.get("cache_dir", ".twitter-cache")
-
-  @property
-  def twitter_cache_timeout(self):
-    return int(self._twitter.get("cache_ttl", 24 * 60 * 60))
+  def twitter_timeout(self):
+    return int(self._twitter.get("timeout", 1))
 
   @property
   def _sql(self):
