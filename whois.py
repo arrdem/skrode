@@ -10,22 +10,40 @@ from bbdb import session, personas
 
 import jinja2
 
-PERSONA_TEMPLATE = jinja2.Template("""\
- - persona: {{persona.id}}
-   names:
+def indent(str, width=2):
+  return "\n".join(["%s%s" % (" " * width, line) for line in str.splitlines()])
+
+
+PERSONA_RAW = """\
+persona: {{persona.id}}
+names:
 {% for name in persona.names %}\
-     - {{name}}
+  - {{name}}
 {% endfor %}\
-   accounts:
+
+accounts:
 {% for account in persona.accounts %}\
-     - service: {{account.service}}
-       foreign key: {{account.external_id}}
-       names:
+  - service: {{account.service}}
+    foreign key: {{account.external_id}}
+    names:
 {% for name in account.names %}\
-         - {{name}}
+      - {{name}}
 {% endfor %}\
+
 {% endfor %}\
-""")
+"""
+
+PERSONA_TEMPLATE = jinja2.Template("---\n" + PERSONA_RAW)
+
+HUMAN_RAW = """\
+human: {{human.id}}
+personas:
+{%% for persona in human.personas %%}\
+  - %s
+{%% endfor %%}\
+""" % (indent(PERSONA_RAW, width=4).lstrip(),)
+
+HUMAN_TEMPLATE = jinja2.Template("---\n" + HUMAN_RAW)
 
 args = argparse.ArgumentParser()
 args.add_argument("name")
@@ -34,4 +52,7 @@ if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
 
   for persona in personas.personas_by_name(session(), opts.name):
-    print(PERSONA_TEMPLATE.render(persona=persona))
+    if persona.owner:
+      print(HUMAN_TEMPLATE.render(human=persona.owner))
+    else:
+      print(PERSONA_TEMPLATE.render(persona=persona))
