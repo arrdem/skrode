@@ -9,8 +9,8 @@ from sqlalchemy_schemadisplay import create_schema_graph
 
 from bbdb.schema import Base
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-o", dest="outfile")
+args = argparse.ArgumentParser()
+args.add_argument("-o", dest="outfile")
 
 def main(opts):
   graph = create_schema_graph(
@@ -21,4 +21,4 @@ def main(opts):
   graph.write_png(opts.outfile) # write out the file
 
 if __name__ == "__main__" or 1:
-  main(parser.parse_args(sys.argv[1:]))
+  main(args.parse_args(sys.argv[1:]))
