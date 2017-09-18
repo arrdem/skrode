@@ -118,6 +118,12 @@ class Persona(Base, UUIDed):
   accounts = relationship("Account", back_populates="persona",
                           cascade="all, delete-orphan")
 
+  owner = relationship("Human",
+                       secondary="persona_control",
+                       primaryjoin="and_(Persona.id==PersonaControl.persona_id, PersonaControl.rel=='owns')",
+                       single_parent=True,
+                       uselist=False)
+
   def __repr__(self):
     return "<Persona {0!r} on {1!r}>".format([name.name for name in self.names],
                                              [account.service.name for account in self.accounts])
