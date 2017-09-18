@@ -6,7 +6,8 @@ WHOIS. A quick user lookup script.
 import argparse
 import sys
 
-from bbdb import session, personas
+from bbdb.config import BBDBConfig
+from bbdb import personas
 
 import jinja2
 
@@ -46,12 +47,16 @@ personas:
 HUMAN_TEMPLATE = jinja2.Template("---\n" + HUMAN_RAW)
 
 args = argparse.ArgumentParser()
+args.add_argument("-c", "--config",
+                  dest="config",
+                  default="config.yml")
 args.add_argument("name")
 
 if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
+  config = BBDBConfig(config=opts.config)
 
-  for persona in personas.personas_by_name(session(), opts.name):
+  for persona in personas.personas_by_name(config.get("sql"), opts.name):
     if persona.owner:
       print(HUMAN_TEMPLATE.render(human=persona.owner))
     else:

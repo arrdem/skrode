@@ -24,19 +24,6 @@ _tw_datetime_pattern = "%a %b %d %H:%M:%S +0000 %Y"
 _tw_url_pattern = re.compile("https://twitter.com/((?P<username>[^/]+)|(i/web))/status/(?P<id>\d+)")
 
 
-def api_for_config(config, **kwargs):
-  _api = twitter.Api(
-      consumer_key=config.twitter_api_key,
-      consumer_secret=config.twitter_api_secret,
-      access_token_key=config.twitter_access_token,
-      access_token_secret=config.twitter_access_secret,
-      timeout=config.twitter_timeout,
-      **kwargs
-  )
-
-  return _api
-
-
 def twitter_external_user_id(fk):
   return "twitter+user:{}".format(fk)
 
