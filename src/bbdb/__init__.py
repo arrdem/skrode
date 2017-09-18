@@ -27,14 +27,14 @@ def make_session_factory(config=None, db_uri=None):
 
   # Start a session to the database
   session_factory = sessionmaker(bind=engine)
-  return session_factory
+  return engine, session_factory
 
 
 @once
 def session():
   """A constructor for the \"default\" session. Just a REPL helper."""
 
-  factory = make_session_factory()
+  _engine, factory = make_session_factory()
   return factory()
 
 
