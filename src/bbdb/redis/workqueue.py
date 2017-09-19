@@ -3,6 +3,7 @@ A simple durable queue backed by Redis.
 """
 
 from uuid import uuid4
+import logging
 
 
 class WorkItem(object):
@@ -91,12 +92,17 @@ class WorkQueue(object):
     self._decoder = decoder or (lambda x: x)
 
   def put(self, value):
+    value = self._encoder(value)
     if self._indirect:
       item_id = uuid4()
-      self._conn.set(item_id, self._encoder(value))
+      self._conn.set(item_id, value)
       self._conn.lpush(self._key, item_id)
     else:
-      self._conn.lpush(self._key, self._encoder(value))
+      for _val in self._conn.lrange(self._key, 0, -1):
+        if _val == value:
+          logging.info("Skipping duplicate work item...")
+          return
+      self._conn.lpush(self._key, value)
 
   def get(self):
     item_or_id = self._conn.rpoplpush(self._key, self._inflight)

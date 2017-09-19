@@ -21,7 +21,8 @@ def insert_phone_number(session, persona, number):
   """
 
   parsed_number = format_phonenumber(parse_phonenumber(number), PhoneNumberFormat.RFC3966)
-  phone_account = schema.Account(name=parsed_number, persona=persona,
+  phone_account = schema.Account(external_id=parsed_number,
+                                 persona=persona,
                                  service=insert_phone_service(session))
   session.add(phone_account)
   session.commit()

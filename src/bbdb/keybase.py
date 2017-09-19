@@ -24,8 +24,7 @@ def insert_user(session, kb_user, persona=None, when=None, twitter_api=None):
 
   name = schema.get_or_create(session, schema.Name,
                               name=kb_user.username,
-                              account=kb_account,
-                              persona=kb_account.persona)
+                              account=kb_account)
 
   for proof in kb_user.proofs:
     if proof.proof_type == "generic_web_site":

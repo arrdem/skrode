@@ -203,7 +203,9 @@ def _get_tweet_text(tweet):
 
 
 def _tweet_or_dummy(session, external_id):
-  return get_or_create(session, Post, external_id=twitter_external_tweet_id(external_id))
+  return get_or_create(session, Post,
+                       external_id=twitter_external_tweet_id(external_id),
+                       service=insert_twitter(session))
 
 
 def insert_tweet(session, twitter_api, tweet):

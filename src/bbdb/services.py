@@ -6,7 +6,6 @@ from urllib.parse import urlparse
 
 from bbdb import schema
 
-from detritus import once
 from arrow import utcnow as now
 
 
@@ -67,8 +66,7 @@ def mk_insert_user(service_ctor, external_id_fn):
 
     schema.get_or_create(session, schema.Name,
                          name=external_id,
-                         account=account,
-                         persona=persona)
+                         account=account)
 
     session.commit()
     session.refresh(account)

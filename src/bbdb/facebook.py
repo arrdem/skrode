@@ -14,7 +14,7 @@ from bbdb.personas import merge_left
 from arrow import utcnow as now
 
 
-insert_reddit = mk_service("Facebook", ["http://facebook.com", "http://messenger.com"])
+insert_facebook = mk_service("Facebook", ["http://facebook.com", "http://messenger.com"])
 
 _fb_user_pattern = re.compile(r"(https?://)?(facebook.com)/(?P<username>[^/?]+)(/.+)?(&.+)?")
 
@@ -26,4 +26,4 @@ def external_id(username):
   return "facebook+user:%s" % username
 
 
-insert_user = mk_insert_user(insert_reddit, external_id)
+insert_user = mk_insert_user(insert_facebook, external_id)

@@ -2,39 +2,51 @@
 Helpers for working with (merging/splitting) personas.
 """
 
+from sqlalchemy import asc, func, inspect, join, or_, select, union
+
 from bbdb import schema
 from bbdb.schema import get_or_create
+from bbdb.services import mk_insert_user, mk_service
 from bbdb.telephones import insert_phone_number
 
-from sqlalchemy import func, inspect
+null_service = mk_service("nullsvc", [])
+
+def _nullsvc_fk(id):
+  return "nullsvc+user:%s" % id
+
+insert_user = mk_insert_user(null_service, _nullsvc_fk)
 
 
 def insert_name(session, persona, name):
-  return get_or_create(session, schema.Name, name=name, persona=persona)
+  """Add a name to the given persona by linking it through a null service."""
+
+  return get_or_create(session, schema.Name,
+                       name=name,
+                       account=get_or_create(session, schema.Account,
+                                             service=null_service(session),
+                                             persona=persona))
 
 
-def personas_by_name(session, name, one=False, exact=False):
-  _cmp = lambda: schema.Name.name.contains(name) if not exact else schema.Name.name == name
+def personas_by_name(session, name, one=False, exact=False, limit=None):
+  _filter = lambda: schema.Name.name.contains(name) if not exact else schema.Name.name == name
+  _score = lambda: func.abs(func.length(schema.Name.name) - len(name))
 
   p = session.query(schema.Persona)\
-                .join(schema.Account)\
-                .filter(schema.Persona.id == schema.Account.persona_id)\
-                .join(schema.Name)\
-                .filter(schema.Name.account_id == schema.Account.id)\
-                .filter(_cmp())\
-                .order_by(func.length(schema.Name.name))\
-                .distinct()
+             .join(schema.Account)\
+             .filter(schema.Persona.id == schema.Account.persona_id)\
+             .join(schema.Name)\
+             .filter(schema.Name.account_id == schema.Account.id)\
+             .filter(_filter())\
+             .order_by(_score())\
+             .distinct()
 
-  q = session.query(schema.Persona)\
-                .join(schema.Name)\
-                .filter(_cmp())\
-                .order_by(func.length(schema.Name.name))\
-                .distinct()
+  if limit:
+    p = p.limit(limit)
 
   if one:
-    return p.first() or q.first()
+    return p.first()
   else:
-    return set(p.all() + q.all())
+    return p.all()
 
 
 def merge_left(session, l, r):
@@ -84,38 +96,3 @@ def link_personas_by_owner(session, *ps):
     session.add(p)
 
   session.commit()
-
-
-def create_persona(session, twitter_api,
-                   names=None, links=None, emails=None, phones=None, twitter_handles=None):
-  persona = schema.Persona()
-  session.add(persona)
-  if names:
-    for name in names:
-      get_or_create(session, schema.Name, name=name, persona=persona)
-
-  if links:
-    for link in links:
-      get_or_create(session, schema.Website, handle=link, persona=persona)
-
-  if emails:
-    for email in emails:
-      get_or_create(session, schema.EmailHandle, handle=email, persona=persona)
-
-  if phones:
-    for phone in phones:
-      insert_phone_number(session, persona, phone)
-
-  if twitter_handles and twitter_api:
-    for handle in twitter_handles:
-      user = twitter_api.GetUser(screen_name=handle)
-      handle = session.query(schema.TwitterHandle).filter_by(id=user.id).first()
-      if handle:
-        merge_left(session, persona, handle.persona)
-      else:
-        from bbdb.twitter import insert_user
-        insert_user(session, user, persona)
-
-  session.commit()
-
-  return persona

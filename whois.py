@@ -50,13 +50,17 @@ args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
                   dest="config",
                   default="config.yml")
+args.add_argument("-l", "--limit",
+                  dest="limit",
+                  default=3,
+                  type=int)
 args.add_argument("name")
 
 if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
   config = BBDBConfig(config=opts.config)
 
-  for persona in personas.personas_by_name(config.get("sql"), opts.name):
+  for persona in personas.personas_by_name(config.get("sql"), opts.name, limit=opts.limit):
     if persona.owner:
       print(HUMAN_TEMPLATE.render(human=persona.owner))
     else:

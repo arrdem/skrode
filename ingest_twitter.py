@@ -22,7 +22,7 @@ log = logging.getLogger(__name__)
 def have_user(session, id):
   """Get a Twitter account, or None if it doesn't exist yet."""
   return session.query(Account)\
-                .filter_by(external_id=bt.twitter_external_user_id(id))\
+                .filter(Account.external_id==bt.twitter_external_user_id(id))\
                 .first()
 
 
@@ -46,7 +46,10 @@ def ingest_user_object(user, session):
 def have_tweet(session, id):
   """Get the Post for a Tweet ID, or None if it doesn't exist yet."""
   return session.query(Post)\
-                .filter_by(external_id=bt.twitter_external_tweet_id(id))\
+                .filter(Post.external_id==bt.twitter_external_tweet_id(id),
+                        Post.when != None,
+                        Post.service != None,
+                        Post.text != None)\
                 .first()
 
 
@@ -64,7 +67,10 @@ def ingest_tweet(tweet, session, twitter_api, tweet_id_queue):
     ingest_user_object(tweet.user, session)
 
   else:
-    log.info(bt.insert_tweet(session, twitter_api, tweet))
+    flag = have_tweet(session, tweet.id)
+    t = bt.insert_tweet(session, twitter_api, tweet)
+    if not flag:
+      log.info(t)
 
     if tweet.in_reply_to_status_id:
       # This tweet is a reply. It links to some other tweet. Or possibly tweets depending on the
@@ -73,8 +79,8 @@ def ingest_tweet(tweet, session, twitter_api, tweet_id_queue):
       # inserting its parent post(s) (recursively!)
       thread_id = str(tweet.in_reply_to_status_id)
       if not have_tweet(session, thread_id):
-        # FIXME: insert status ID into queue for later processing
         tweet_id_queue.put(thread_id)
+        pass
 
     if tweet.quoted_status:
       # This is a quote tweet (possibly subtweet or snarky reply, quote tweets have different
@@ -85,6 +91,7 @@ def ingest_tweet(tweet, session, twitter_api, tweet_id_queue):
       tweet_id = bt.tweet_id_from_url(url.expanded_url)
       if tweet_id and not have_tweet(session, tweet_id):
         tweet_id_queue.put(tweet_id)
+        pass
 
     for user in tweet.user_mentions or []:
       if not isinstance(user, User):
@@ -97,17 +104,19 @@ def ingest_tweet_id(status_id, session, twitter_api, tweet_id_queue):
 
   status_id = str(status_id)  # Just to be sure...
 
-  if not have_tweet(session, status_id):
+  p = have_tweet(session, status_id)
+  if p:
+    log.info("Referenced existing tweet %s", p)
+  else:
     try:
-      log.info(ingest_tweet(twitter_api.GetStatus(status_id=status_id), session, twitter_api,
-                            tweet_id_queue))
+      ingest_tweet(twitter_api.GetStatus(status_id=status_id), session, twitter_api, tweet_id_queue)
     except TwitterError as e:
       # This probably means that either:
       # 1) I'm not allowed to see the content because the user is private
       # 2) The tweet has been deleted
       #
       # Either way, just warn and delete the record if one exists.
-      log.warn("https://twitter.com/i/status/{}".format(status_id.decode()), e)
+      log.warn("https://twitter.com/i/status/%s unavailable - %s", status_id, e)
       dummy = bt._tweet_or_dummy(session, status_id)
       dummy.tombstone = True
       session.add(dummy)
@@ -165,7 +174,10 @@ def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
       user_queue.put(str(friend))
 
   else:
-    log.info(json.dumps(stream_event))
+    blob = json.dumps(stream_event)
+    with open("mystery.log", "a") as f:
+      f.write(blob + "\n")
+    log.warn(blob)
 
 
 class TimeoutException(Exception):
@@ -192,13 +204,15 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
       stream = twitter_api.GetUserStream(**stream_kwargs)
 
     try:
-      signal.alarm(90)
+      signal.alarm(30)
       for stream_event in stream:
         if stream_event:
           _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue)
-          signal.alarm(90)
         else:
-          log.info("keepalive....")
+          log.debug("keepalive....")
+
+        # Update the alarm we're using for the keepalive signal...
+        signal.alarm(30)
 
         if event.is_set():
           break
@@ -218,5 +232,7 @@ def collect_empty_tweets(event, session, tweet_id_queue):
                                    Post.tombstone==False)\
                            .all():
       tweet_id_queue.put(post_id.split(":")[1])
+      if event.is_set():
+        break
 
     time.sleep(5)

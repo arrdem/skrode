@@ -104,11 +104,7 @@ class Persona(Base, UUIDed):
 
   @hybrid_property
   def names(self):
-    return unique_by(self.account_names + self.linked_names,
-                     lambda name: name.name)
-
-  linked_names = relationship("Name",
-                              cascade="all, delete-orphan")
+    return set([name.name for name in self.account_names])
 
   account_names = relationship("Name",
                                secondary="account",
@@ -125,7 +121,7 @@ class Persona(Base, UUIDed):
                        uselist=False)
 
   def __repr__(self):
-    return "<Persona {0!r} on {1!r}>".format([name.name for name in self.names],
+    return "<Persona {0!r} on {1!r}>".format(self.names,
                                              [account.service.name for account in self.accounts])
 
 
@@ -203,9 +199,6 @@ class Name(Base, Named, UUIDed):
 
   account_id = Column(UUID, ForeignKey("account.id"))
   account = relationship("Account", single_parent=True)
-
-  persona_id = Column(UUID, ForeignKey("persona.id"), nullable=True)
-  persona = relationship("Persona", single_parent=True)
 
   when = Column(ArrowType)
 
