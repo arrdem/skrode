@@ -204,7 +204,7 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
       stream = twitter_api.GetUserStream(**stream_kwargs)
 
     try:
-      signal.alarm(30)
+      signal.alarm(35)
       for stream_event in stream:
         if stream_event:
           _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue)
@@ -212,7 +212,7 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
           log.debug("keepalive....")
 
         # Update the alarm we're using for the keepalive signal...
-        signal.alarm(30)
+        signal.alarm(35)
 
         if event.is_set():
           break
