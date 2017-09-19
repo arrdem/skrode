@@ -9,10 +9,10 @@ from bbdb.schema import get_or_create
 from bbdb.services import mk_insert_user, mk_service
 from bbdb.telephones import insert_phone_number
 
-null_service = mk_service("nullsvc", [])
+null_service = mk_service("namesvc", [])
 
 def _nullsvc_fk(id):
-  return "nullsvc+user:%s" % id
+  return "namesvc+user:%s" % id
 
 insert_user = mk_insert_user(null_service, _nullsvc_fk)
 
@@ -20,11 +20,21 @@ insert_user = mk_insert_user(null_service, _nullsvc_fk)
 def insert_name(session, persona, name):
   """Add a name to the given persona by linking it through a null service."""
 
+  nullsvc = null_service(session)
+  nullact = session.query(schema.Account)\
+                   .filter_by(service=nullsvc,
+                              persona=persona)\
+                   .first()
+  if not nullact:
+    nullact = schema.Account(service=nullsvc,
+                             external_id=_nullsvc_fk(persona.id),
+                             persona=persona)
+    session.add(nullact)
+    session.commit()
+
   return get_or_create(session, schema.Name,
                        name=name,
-                       account=get_or_create(session, schema.Account,
-                                             service=null_service(session),
-                                             persona=persona))
+                       account=nullact)
 
 
 def personas_by_name(session, name, one=False, exact=False, limit=None):
