@@ -1,9 +1,17 @@
-# BBDB
-The Big Brother Database; a CRM for the rest of us.
+# Skrode
 
-This project is inspired by and named after [Emacs BBDB](https://www.emacswiki.org/emacs/BbdbMode),
-a tool for building and maintaining a contacts list by automatically analyzing various sources such
-as email and IRC.
+Because not everything fits in my endocortex.
+
+[[Skroderider](etc/skroderider.jpg)](http://www.imgrum.org/media/978947310038702323_34982965)!
+
+## What
+
+**TL;DR** A database that records everything I read, everyone I talk to or interact with, and makes
+information such as this searchable to the best of my ability.
+
+This project is inspired by the [Emacs BBDB](https://www.emacswiki.org/emacs/BbdbMode), a tool for
+building and maintaining a contacts list by automatically analyzing various sources such as email
+and IRC.
 
 I never got BBDB to work for me for a number of reasons...
 
@@ -17,9 +25,9 @@ sources such as Atom feeds and email.
 
 ## Architecture
 
-BBDB is a Postgres backed collection of Python tools written using the SQLAlchemy ORM toolkit.
+Skrode is a Postgres backed collection of Python tools written using the SQLAlchemy ORM toolkit.
 
-BBDB is primarily concerned with the concepts of Humans, Personas, Services and Accounts. A Human is
+Skrode is primarily concerned with the concepts of Humans, Personas, Services and Accounts. A Human is
 a biological entity. Unfortunately, they're rather fluid things about which few assumptions are
 actually safe. Humans present Personas to the world - professional or otherwise - which consist of
 presences as Accounts on Services.
@@ -44,7 +52,7 @@ rather than batch model.
 
 ## Configuration
 
-BBDB and its affiliated CLI scripts all rely on a config file (by default `./config.yml`) which
+Skrode and its affiliated CLI scripts all rely on a config file (by default `./config.yml`) which
 provides configuration values for the various required services.
 
 ### Example config
@@ -64,7 +72,7 @@ sql:
   port: 5432
   username: ...
   password: ...
-  database: bbdb
+  database: skrode
 
 redis:
   hostname: localhost
@@ -146,4 +154,4 @@ trying to relate Twitter accounts to other services.
 
 ## License
 
-Copyright Reid 'arrdem' McKenzie. All rights reserved. Commercial deployment is expressly forbidden.
+Copyright Reid 'arrdem' McKenzie. All rights reserved.
