@@ -8,13 +8,13 @@ import time
 import logging
 
 from skrode import twitter as bt
-from skrode.schema import Account, Post
+from skrode.schema import Account, Post, PostRelationship, PostDistribution
 
 from twitter.models import Status, User
 from twitter.error import TwitterError
 from requests import Session
 from requests import exceptions as rex
-
+from sqlalchemy import or_
 
 log = logging.getLogger(__name__)
 
@@ -275,7 +275,8 @@ def ensure_tombstones_empty(event, session):
     log.info("Deleted %d posts",
              session.query(Post)\
                     .filter(Post.tombstone == True,
-                            Post.text != None,
+                            or_(Post.text != None,
+                                Post.more != None),
                             Post.service == _t)\
                     .update({Post.text: None,
                              Post.more: None}))
