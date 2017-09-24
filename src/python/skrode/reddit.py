@@ -6,10 +6,10 @@ from __future__ import absolute_import
 
 import re
 
-from bbdb.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
+from skrode.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
                          get_or_create)
-from bbdb.services import mk_service, mk_insert_user
-from bbdb.personas import merge_left
+from skrode.services import mk_service, mk_insert_user
+from skrode.personas import merge_left
 
 from arrow import utcnow as now
 

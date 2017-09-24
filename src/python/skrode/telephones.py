@@ -4,8 +4,8 @@ Helpers for working with telephone numbers.
 
 from __future__ import absolute_import
 
-from bbdb import schema
-from bbdb.services import mk_service
+from skrode import schema
+from skrode.services import mk_service
 
 from phonenumbers import (format_number as format_phonenumber,
                           parse as parse_phonenumber,

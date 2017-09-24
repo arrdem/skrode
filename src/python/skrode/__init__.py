@@ -1,9 +1,9 @@
 """
-The heart of bbdb. Session & DB state stuff.
+The heart of skrode. Session & DB state stuff.
 """
 
 from detritus import once
-from bbdb.config import BBDBConfig
+from skrode.config import BBDBConfig
 
 
 @once

@@ -2,7 +2,7 @@
 Helpers for dealing with SQL connections.
 """
 
-from bbdb import schema
+from skrode import schema
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

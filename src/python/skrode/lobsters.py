@@ -4,12 +4,12 @@ Helpers for dealing with lobste.rs
 
 from __future__ import absolute_import
 
-from bbdb import schema
-from bbdb.personas import merge_left
-from bbdb.services import mk_service, mk_insert_user
-from bbdb.twitter import insert_user as twitter_insert_user, insert_twitter
-from bbdb.github import insert_user as gh_insert_user
-from bbdb.reddit import insert_user as reddit_insert_user
+from skrode import schema
+from skrode.personas import merge_left
+from skrode.services import mk_service, mk_insert_user
+from skrode.twitter import insert_user as twitter_insert_user, insert_twitter
+from skrode.github import insert_user as gh_insert_user
+from skrode.reddit import insert_user as reddit_insert_user
 
 from lobsters import User
 from twitter.error import TwitterError

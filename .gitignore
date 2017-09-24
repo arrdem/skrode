@@ -4,3 +4,6 @@
 config.yml
 tunnel.sh
 service-config.yml
+.cache
+.pants.d
+.pants.workdir.file_lock

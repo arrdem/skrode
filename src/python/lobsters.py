@@ -6,9 +6,9 @@ from collections import namedtuple
 from functools import lru_cache
 import re
 
-from bbdb.twitter import _tw_user_pattern
-from bbdb.github import _gh_user_pattern
-from bbdb.reddit import _reddit_user_pattern
+from skrode.twitter import _tw_user_pattern
+from skrode.github import _gh_user_pattern
+from skrode.reddit import _reddit_user_pattern
 
 from detritus import once
 from bs4 import BeautifulSoup

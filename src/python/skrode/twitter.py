@@ -14,10 +14,10 @@ from arrow import utcnow as now
 from twitter.error import TwitterError
 from twitter.models import User
 
-from bbdb.schema import (Account, AccountRelationship, Human, Name, Persona,
+from skrode.schema import (Account, AccountRelationship, Human, Name, Persona,
                          Post, PostDistribution, PostRelationship, Service,
                          get_or_create)
-from bbdb.services import mk_service
+from skrode.services import mk_service
 
 _tw_user_pattern = re.compile("(https?://)twitter.com/(?P<username>[^/?]+)(/.+)?(&.+)?")
 _tw_datetime_pattern = "%a %b %d %H:%M:%S +0000 %Y"

@@ -4,7 +4,7 @@ A hackernews backend.
 
 from __future__ import absolute_import
 
-from bbdb.services import mk_service, mk_insert_user
+from skrode.services import mk_service, mk_insert_user
 
 
 insert_hn = mk_service("Hackernews", ["http://news.ycombinator.com"])

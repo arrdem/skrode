@@ -7,8 +7,8 @@ from __future__ import absolute_import
 import json
 import types
 
-from bbdb.redis.workqueue import WorkQueue
-from bbdb.sql import make_uri as make_sql_uri, make_engine_session_factory
+from skrode.redis.workqueue import WorkQueue
+from skrode.sql import make_uri as make_sql_uri, make_engine_session_factory
 
 import yaml
 import redis
@@ -27,12 +27,12 @@ def _make_sql_session(**kwargs):
   return sessionmaker()
 
 
-yaml.SafeLoader.add_constructor('!bbdb/redis', make_proxy_ctor(redis.StrictRedis))
-yaml.SafeLoader.add_constructor('!bbdb/queue', make_proxy_ctor(WorkQueue,
+yaml.SafeLoader.add_constructor('!skrode/redis', make_proxy_ctor(redis.StrictRedis))
+yaml.SafeLoader.add_constructor('!skrode/queue', make_proxy_ctor(WorkQueue,
                                                                encoder=json.dumps,
                                                                decoder=json.loads))
-yaml.SafeLoader.add_constructor('!bbdb/twitter', make_proxy_ctor(Api))
-yaml.SafeLoader.add_constructor('!bbdb/sql', make_proxy_ctor(_make_sql_session))
+yaml.SafeLoader.add_constructor('!skrode/twitter', make_proxy_ctor(Api))
+yaml.SafeLoader.add_constructor('!skrode/sql', make_proxy_ctor(_make_sql_session))
 
 
 DEFAULTS = {
@@ -45,7 +45,7 @@ DEFAULTS = {
     "password": "",
     "hostname": "localhost",
     "port": "5432",
-    "database": "bbdb",
+    "database": "skrode",
     "uri": make_sql_uri,
   }
 }

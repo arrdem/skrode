@@ -4,7 +4,7 @@ Helpers for working with services.
 
 from urllib.parse import urlparse
 
-from bbdb import schema
+from skrode import schema
 
 from arrow import utcnow as now
 
@@ -58,7 +58,7 @@ def mk_insert_user(service_ctor, external_id_fn):
       account.when = when
 
     if account.persona and persona:
-      from bbdb.personas import merge_left
+      from skrode.personas import merge_left
       merge_left(session, persona, account.persona)
 
     else:
