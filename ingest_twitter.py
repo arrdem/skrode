@@ -236,3 +236,50 @@ def collect_empty_tweets(event, session, tweet_id_queue):
         break
 
     time.sleep(5)
+
+
+def ensure_tombstones_empty(event, session):
+  """Garbage collect posts to twitter which are tagged as tombstones.
+
+  The Twitter API terms of service require that you not persist data for posts which have been
+  deleted by their original author. This provides a worker which will garbage collect populated but
+  deleted posts to maintain compliance.
+
+  Amusingly this is literally how gnip solved the problem.
+
+  """
+
+  _t = bt.insert_twitter(session)
+  while not event.is_set():
+    # Delete post relationships where the post is deleted
+    q = session.query(PostRelationship.id)\
+               .join(Post, PostRelationship.left_id == Post.id)\
+               .filter(Post.tombstone == True,
+                       Post.service == _t)
+
+    session.query(PostRelationship)\
+           .filter(PostRelationship.id.in_(q.subquery()))\
+           .delete(synchronize_session='fetch')
+
+    # Delete post distribution records where the post is deleted
+    q = session.query(PostDistribution.id)\
+               .join(Post)\
+               .filter(Post.tombstone == True,
+                       Post.service == _t)
+
+    session.query(PostDistribution)\
+           .filter(PostDistribution.id.in_(q.subquery()))\
+           .delete(synchronize_session='fetch')
+
+    # "Delete" posts where the post is deleted
+    log.info("Deleted %d posts",
+             session.query(Post)\
+                    .filter(Post.tombstone == True,
+                            Post.text != None,
+                            Post.service == _t)\
+                    .update({Post.text: None,
+                             Post.more: None}))
+
+    session.commit()
+
+    time.sleep(5)
