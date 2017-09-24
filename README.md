@@ -1,10 +1,10 @@
-# Skrode
-
-Because not everything fits in my endocortex.
-
 <p align="center">
   <a href="http://www.imgrum.org/media/978947310038702323_34982965"><img src="https://github.com/arrdem/skrode/raw/master/etc/skroderider.jpg" alt="The Skrode and its rider"/></a>
 </p>
+
+# Skrode
+
+Because not everything fits in my endocortex.
 
 ## What
 
