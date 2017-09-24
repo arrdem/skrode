@@ -2,7 +2,7 @@
 
 Because not everything fits in my endocortex.
 
-[[Skroderider](etc/skroderider.jpg)](http://www.imgrum.org/media/978947310038702323_34982965)!
+[![Skroderider](etc/skroderider.jpg)](http://www.imgrum.org/media/978947310038702323_34982965)
 
 ## What
 
