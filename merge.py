@@ -6,8 +6,8 @@ MERGE. A quick script for merging personas together.
 import argparse
 import sys
 
-from bbdb import personas, schema
-from bbdb.config import BBDBConfig
+from skrode import personas, schema
+from skrode.config import Config
 
 args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
@@ -19,7 +19,7 @@ args.add_argument("r")
 
 
 def main(opts):
-  config = BBDBConfig(config=opts.config)
+  config = Config(config=opts.config)
   session = config.get("sql")
 
   l = session.query(schema.Persona).filter_by(id=opts.l).one()

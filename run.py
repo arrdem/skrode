@@ -1,4 +1,4 @@
-"""Run the entire BBDB topology.
+"""Run an entire Skrode process topology.
 
 By making aggressive use of YAML labels and throwing in a touch of metaprogramming with some eval
 this script provides what is best compared to Docker's compose functionality in that it allows for
@@ -6,14 +6,14 @@ the concise description of a set of services to be run as processes, the queues 
 be fed or into which they will feed, and then provides watchdogging / restarts until a SIGINT
 signals that the entire assemblage should shut down.
 
-Example-ish configuration, note use of !bbdb/* ctors, provided by bbdb.config.
+Example-ish configuration, note use of !skrode/* ctors, provided by skrode.config.
 
 .. code-block:: yaml
 
    ---
    twitter:
      &twitter
-     !bbdb/twitter
+     !skrode/twitter
      consumer_key: ...
      consumer_secret: ...
      access_token_key: ...
@@ -23,18 +23,18 @@ Example-ish configuration, note use of !bbdb/* ctors, provided by bbdb.config.
 
    sql:
      &sql
-     !bbdb/sql
+     !skrode/sql
      dialect: postgresql+psycopg2
      hostname: localhost
      port: 5432
      username: ....
      password: ....
-     database: bbdb
+     database: skrode
 
    # The Redis database connections should go to
    redis:
      &redis
-     !bbdb/redis
+     !skrode/redis
      host: localhost
      port: 6379
      db: 0
@@ -43,21 +43,21 @@ Example-ish configuration, note use of !bbdb/* ctors, provided by bbdb.config.
    ################################################################################
    twitter_username_queue:
      &twitter_username_queue
-     !bbdb/queue
+     !skrode/queue
      conn: *redis
      key: /queue/twitter/user_names/ready
      inflight: /queue/twitter/user_names/inflight
 
    twitter_user_id_queue:
      &twitter_user_id_queue
-     !bbdb/queue
+     !skrode/queue
      conn: *redis
      key: /queue/twitter/user_ids/ready
      inflight: /queue/twitter/user_ids/inflight
 
    twitter_user_queue:
      &twitter_user_queue
-     !bbdb/queue
+     !skrode/queue
      conn: *redis
      key: /queue/twitter/users/ready
      inflight: /queue/twitter/users/inflight
@@ -65,14 +65,14 @@ Example-ish configuration, note use of !bbdb/* ctors, provided by bbdb.config.
    # Tweets can come in both by ID and as full JSON blobs..
    tweet_id_queue:
      &tweet_id_queue
-     !bbdb/queue
+     !skrode/queue
      conn: *redis
      key: /queue/twitter/tweet_ids/ready
      inflight: /queue/twitter/tweet_ids/inflight
 
    tweet_queue:
      &tweet_queue
-     !bbdb/queue
+     !skrode/queue
      conn: *redis
      key: /queue/twitter/tweets/ready
      inflight: /queue/twitter/tweets/inflight
@@ -132,7 +132,7 @@ from multiprocessing import Process
 import os
 from queue import Queue, Empty
 
-from bbdb.config import BBDBConfig
+from skrode.config import Config
 
 import colorlog
 
@@ -146,9 +146,9 @@ args.add_argument("-c", "--config",
 
 def _import(path):
   """Import a named member from a fully qualified module path."""
-  _path = path.split(".")
-  module = __import__(".".join(_path[:-1]))
-  return getattr(module, _path[-1])
+  module_name, member_name = path.split(":")
+  module = __import__(module_name)
+  return getattr(module, member_name)
 
 
 WORKER_REGISTRY = {}
@@ -202,11 +202,18 @@ def mk_sigint_event():
   return event
 
 
+def reboot(sig, frame):
+  # Kill off the workers
+  os.kill(os.getpgid(), signal.SIGINT)
+  # Reboot this process
+  os.execv(__file__, sys.argv)
+
+
 def worker(opts, target_name):
   """Process entry point. Runs a worker selected out of the global topology configuration."""
 
   # Load the config for ourselves, initializing all connections & queues
-  config = BBDBConfig(config=opts.config)
+  config = Config(config=opts.config)
 
   # Provide a graceful shutdown signal handler
   event = mk_sigint_event()
@@ -229,7 +236,7 @@ def main(opts):
   global log
   log = logging.getLogger(__name__)
 
-  config = BBDBConfig(config=opts.config)
+  config = Config(config=opts.config)
 
   children = {}
   restarts = Queue()
@@ -248,12 +255,16 @@ def main(opts):
       log.warn("Subprocess %d exited, job %r queued for restart", pid, job)
       del children[pid]
 
+  # When a child dies, restart it
   signal.signal(signal.SIGCHLD, _chld)
+
+  # When we get a SIGUSR1, reboot the entire system
+  signal.signal(signal.SIGUSR1, reboot)
 
   event = mk_sigint_event()
   while not event.is_set():
     # Restart all the dead children..
-    while True:
+    while not event.is_set():
       try:
         worker_name = restarts.get_nowait()
       except Empty:

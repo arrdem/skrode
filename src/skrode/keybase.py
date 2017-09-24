@@ -3,10 +3,10 @@ A BBDB module for trying to find keybase identities related to a profile
 """
 
 from keybase import Api, Proof, NoSuchUserException
-from bbdb import schema
-from bbdb.services import mk_service, normalize_url, mk_insert_user
-from bbdb.twitter import insert_twitter, insert_user as twitter_insert_user
-from bbdb.personas import merge_left
+from skrode import schema
+from skrode.services import mk_service, normalize_url, mk_insert_user
+from skrode.twitter import insert_twitter, insert_user as twitter_insert_user
+from skrode.personas import merge_left
 
 
 insert_keybase = mk_service("Keybase", ["http://keybase.io"])

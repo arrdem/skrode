@@ -5,7 +5,7 @@ Join Twitter handles against the Keybase API.
 import argparse
 import sys
 
-from bbdb import schema, config, keybase, make_session_factory, twitter as bt
+from skrode import schema, config, keybase, make_session_factory, twitter as bt
 
 from keybase import Api, NoSuchUserException
 

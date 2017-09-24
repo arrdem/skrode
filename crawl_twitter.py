@@ -6,8 +6,8 @@ A quick and dirty script to crawl my Twitter friends & followers, populating the
 import argparse
 import sys
 
-from bbdb.redis.workqueue import WorkQueue
-from bbdb import schema, twitter as bt, config, make_session_factory, personas, rds_for_config
+from skrode.redis.workqueue import WorkQueue
+from skrode import schema, twitter as bt, config, make_session_factory, personas, rds_for_config
 
 import arrow
 from twitter.models import User
@@ -50,7 +50,7 @@ def ingest_users(twitter_api, session, users):
 def main():
   opts = args.parse_args(sys.argv[1:])
 
-  bbdb_config = config.BBDBConfig(config=opts.config)
+  bbdb_config = config.Config(config=opts.config)
 
   # SQL
   ########################################

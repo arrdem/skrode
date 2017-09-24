@@ -6,8 +6,8 @@ WHOIS. A quick user lookup script.
 import argparse
 import sys
 
-from bbdb.config import BBDBConfig
-from bbdb import personas
+from skrode.config import Config
+from skrode import personas
 
 import jinja2
 
@@ -58,7 +58,7 @@ args.add_argument("name")
 
 if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
-  config = BBDBConfig(config=opts.config)
+  config = Config(config=opts.config)
 
   for persona in personas.personas_by_name(config.get("sql"), opts.name, limit=opts.limit):
     if persona.owner:

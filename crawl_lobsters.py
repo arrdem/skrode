@@ -7,8 +7,8 @@ import sys
 import random
 import time
 
-from bbdb import make_session_factory, twitter, config, schema
-from bbdb.lobsters import insert_user, lobsters_external_id
+from skrode import make_session_factory, twitter, config, schema
+from skrode.lobsters import insert_user, lobsters_external_id
 import lobsters
 
 import requests
@@ -30,7 +30,7 @@ args.add_argument("-c", "--config",
 
 if __name__ == "__main__":
   opts = args.parse_args(sys.argv[1:])
-  bbdb_config = config.BBDBConfig(opts.config)
+  bbdb_config = config.Config(opts.config)
 
   factory = make_session_factory(config=bbdb_config)
   session = factory()

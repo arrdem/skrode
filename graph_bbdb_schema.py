@@ -7,7 +7,7 @@ import sys
 
 from sqlalchemy_schemadisplay import create_schema_graph
 
-from bbdb.schema import Base
+from skrode.schema import Base
 
 args = argparse.ArgumentParser()
 args.add_argument("-o", dest="outfile")

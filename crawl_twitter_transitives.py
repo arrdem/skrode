@@ -4,20 +4,18 @@ A quick and dirty script to crawl my Twitter friends & followers, populating the
 
 import sys
 
-from twitter import _FileCache
-
-from bbdb import schema, twitter, config, make_session_factory
+from skrode import schema, twitter, config, make_session_factory
 
 import arrow
 
 
-factory = make_session_factory()
-
-bbdb_config = config.BBDBConfig()
-
-twitter_api = twitter.api_for_config(bbdb_config, sleep_on_rate_limit=True)
-
 if __name__ == "__main__":
+  factory = make_session_factory()
+
+  bbdb_config = config.Config()
+
+  twitter_api = twitter.api_for_config(bbdb_config, sleep_on_rate_limit=True)
+
   session = factory()
 
   if len(sys.argv) == 2:

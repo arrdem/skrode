@@ -7,8 +7,8 @@ import signal
 import time
 import logging
 
-from bbdb import twitter as bt
-from bbdb.schema import Account, Post
+from skrode import twitter as bt
+from skrode.schema import Account, Post
 
 from twitter.models import Status, User
 from twitter.error import TwitterError

@@ -23,7 +23,7 @@ I never got BBDB to work for me for a number of reasons...
 
 The goal of this project is to develop a multi-worker queue architecture capable of processing many
 source streams from services such as Twitter, IRC, Slack and soforth as well as traditional BBDB
-sources such as Atom feeds and email.
+sources such as Atom feeds and email, aggregating user profiles, link data and full text for search.
 
 ## Architecture
 
