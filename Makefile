@@ -1,34 +1,43 @@
 # The virtualenvironment
-venv: venv/bin/activate
 
-venv/bin/activate: requirements.txt
-	test -d venv || virtualenv --python python3 venv
-	venv/bin/pip install -Ur requirements.txt
+BUILDROOT=.build
+VIRTUALENV=$(BUILDROOT)/venv
+VIRTUALENVLIB=$(VIRTUALENV)/lib/python3.6/site-packages
+PYTHON=$(VIRTUALENV)/bin/python
+VENDORED=$(BUILDROOT)/vendored
+
+.build:
+	mkdir -p .build
+
+venv: $(VIRTUALENV)/bin/activate
+
+$(VIRTUALENV)/bin/activate: $(BUILDROOT) requirements.txt
+	test -d $(VIRTUALENV) || virtualenv --python python3 $(VIRTUALENV)
+	$(VIRTUALENV)/bin/pip install -Ur requirements.txt
+	test -d ~/.virtualenvs && ln -s $(shell realpath $(VIRTUALENV)) ~/.virtualenvs/skrode
 
 # Vendored dependnecies
-vendored:
-	test -d vendored || mkdir vendored
+vendored: $(VENDORED)
 
-python-twitter: venv/lib/python3.6/site-packages/python-twitter.egg-link
-
-venv/lib/python3.6/site-packages/python-twitter.egg-link: venv vendored
-	git clone git@github.com:arrdem/python-twitter.git clone vendored/python-twitter
-	venv/bin/python vendored/python-twitter/setup.py develop
+$(VENDORED):
+	test -d $(VENDORED) || mkdir $(VENDORED)
 
 # Skrode itself
-skrode: venv/lib/python3.6/site-packages/skrode.egg-link
+skrode: $(VIRTUALENVLIB)/skrode.egg-link
 
-venv/lib/python3.6/site-packages/skrode.egg-link: venv python-twitter
-	venv/bin/python setup.py develop
+$(VIRTUALENVLIB)/skrode.egg-link: venv python-twitter
+	$(PYTHON) setup.py develop
+
+# Our vendored python-twitter dependency
+python-twitter: $(VIRTUALENVLIB)/python-twitter.egg-link
+
+$(VIRTUALENVLIB)/python-twitter.egg-link: venv vendored
+	test -d $(VENDORED)/python-twitter || git clone git@github.com:arrdem/python-twitter.git $(VENDORED)/python-twitter
+	$(PYTHON) $(VENDORED)/python-twitter/setup.py develop
 
 # Dummy target for Python files
 %.py:
 
 # A target for graphing the database schema
 etc/dbschema.png: venv src/bbdb/schema.py
-	venv/bin/python ./graph_bbdb_schema.py -o etc/dbschema.png
-
-# A target for running (or restarting) the service
-.PHONY: run
-run: venv skrode
-	venv/bin/python ./run.py -c service-config.yml
+	$(PYTHON) ./graph_bbdb_schema.py -o etc/dbschema.png
