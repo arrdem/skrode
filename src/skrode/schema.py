@@ -273,7 +273,7 @@ class Post(Base, UUIDed):
   # The post itself
   text = Column(Unicode)
 
-  tombstone = Column(Boolean, default=False)
+  tombstone = Column(Boolean, default=False, index=True)
 
   def __repr__(self):
     return ("<Post id=%r, poster_id=%r, poster=%r, at=%r, text=%r>"
