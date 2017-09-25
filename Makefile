@@ -14,7 +14,7 @@ venv: $(VIRTUALENV)/bin/activate
 $(VIRTUALENV)/bin/activate: $(BUILDROOT) requirements.txt
 	test -d $(VIRTUALENV) || virtualenv --python python3 $(VIRTUALENV)
 	$(VIRTUALENV)/bin/pip install -Ur requirements.txt
-	test -d ~/.virtualenvs && ln -s $(shell realpath $(VIRTUALENV)) ~/.virtualenvs/skrode
+	test -d ~/.virtualenvs && test -e $@ || ln -s $(shell realpath $(VIRTUALENV)) ~/.virtualenvs/skrode
 
 # Vendored dependnecies
 vendored: $(VENDORED)
