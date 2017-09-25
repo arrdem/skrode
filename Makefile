@@ -33,7 +33,7 @@ python-twitter: $(VIRTUALENVLIB)/python-twitter.egg-link
 
 $(VIRTUALENVLIB)/python-twitter.egg-link: venv vendored
 	test -d $(VENDORED)/python-twitter || git clone git@github.com:arrdem/python-twitter.git $(VENDORED)/python-twitter
-	$(PYTHON) $(VENDORED)/python-twitter/setup.py develop
+	cd $(VENDORED)/python-twitter; $(shell realpath $(PYTHON)) setup.py develop
 
 # Dummy target for Python files
 %.py:
