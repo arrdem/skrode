@@ -28,10 +28,16 @@ def _make_sql_session(**kwargs):
   return sessionmaker()
 
 
+def _decode_and_load(text):
+  if isinstance(text, bytes):
+    text = bytes.decode("utf-8")
+  return json.loads(text)
+
+
 yaml.SafeLoader.add_constructor('!skrode/redis', make_proxy_ctor(redis.StrictRedis))
 yaml.SafeLoader.add_constructor('!skrode/queue', make_proxy_ctor(WorkQueue,
                                                                  encoder=json.dumps,
-                                                                 decoder=json.loads))
+                                                                 decoder=_decode_and_load))
 yaml.SafeLoader.add_constructor('!skrode/twitter', make_proxy_ctor(Api))
 yaml.SafeLoader.add_constructor('!skrode/sql', make_proxy_ctor(_make_sql_session))
 
