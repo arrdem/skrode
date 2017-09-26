@@ -276,9 +276,9 @@ def ensure_tombstones_empty(event, session):
     # "Delete" posts where the post is deleted
     q = session.query(Post)\
                .filter(Post.tombstone == True,
-                       or_(Post.text != None,
-                           Post.more != None),
-                       Post.service == _t)
+                       Post.service == _t)\
+               .filter(or_(Post.text != None,
+                           Post.more != None))
 
     post_count = q.count()
     # Do this by hand since the .update() is being finnicky.
