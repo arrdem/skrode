@@ -30,7 +30,7 @@ def _make_sql_session(**kwargs):
 
 def _decode_and_load(text):
   if isinstance(text, bytes):
-    text = bytes.decode("utf-8")
+    text = text.decode("utf-8")
   return json.loads(text)
 
 
