@@ -257,9 +257,10 @@ def ensure_tombstones_empty(event, session):
                .filter(Post.tombstone == True,
                        Post.service == _t)
 
-    session.query(PostRelationship)\
-           .filter(PostRelationship.id.in_(q.subquery()))\
-           .delete(synchronize_session='fetch')
+    log.info("Deleted %d post relationships",
+             session.query(PostRelationship)\
+                    .filter(PostRelationship.id.in_(q.subquery()))\
+                    .delete(synchronize_session='fetch'))
 
     # Delete post distribution records where the post is deleted
     q = session.query(PostDistribution.id)\
@@ -267,20 +268,26 @@ def ensure_tombstones_empty(event, session):
                .filter(Post.tombstone == True,
                        Post.service == _t)
 
-    session.query(PostDistribution)\
-           .filter(PostDistribution.id.in_(q.subquery()))\
-           .delete(synchronize_session='fetch')
+    log.info("Deleted %d post distribution records",
+             session.query(PostDistribution)\
+                    .filter(PostDistribution.id.in_(q.subquery()))\
+                    .delete(synchronize_session='fetch'))
 
     # "Delete" posts where the post is deleted
-    log.info("Deleted %d posts",
-             session.query(Post)\
-                    .filter(Post.tombstone == True,
-                            or_(Post.text != None,
-                                Post.more != None),
-                            Post.service == _t)\
-                    .update({Post.text: None,
-                             Post.more: None}))
+    q = session.query(Post)\
+               .filter(Post.tombstone == True,
+                       or_(Post.text != None,
+                           Post.more != None),
+                       Post.service == _t)
 
+    post_count = q.count()
+    # Do this by hand since the .update() is being finnicky.
+    for post in q.all():
+      post.text = None
+      post.more = None
+      session.add(post)
     session.commit()
+    
+    log.info("Deleted %d posts", post_count)
 
     time.sleep(5)
