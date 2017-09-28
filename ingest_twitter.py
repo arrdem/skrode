@@ -10,6 +10,7 @@ import logging
 from skrode import twitter as bt
 from skrode.schema import Account, Post, PostRelationship, PostDistribution
 
+from arrow import utcnow
 from twitter.models import Status, User
 from twitter.error import TwitterError
 from requests import Session
@@ -196,32 +197,39 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
 
   stream = None
   http_session = None
+  reset_date = None
   while not event.is_set():
-    if not http_session:
+    if not http_session or reset_date and reset_date <= utcnow():
       http_session = Session()
+      reset_date = utcnow().replace(days=+1)
 
-    if not stream:
-      stream = twitter_api.GetUserStream(**stream_kwargs)
+    with http_session as s:
+      stream = twitter_api.GetUserStream(session=s, **stream_kwargs)
 
-    try:
-      signal.alarm(35)
-      for stream_event in stream:
-        if stream_event:
-          _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue)
-        else:
-          log.debug("keepalive....")
-
-        # Update the alarm we're using for the keepalive signal...
+      try:
         signal.alarm(35)
+        for stream_event in stream:
+          if stream_event:
+            _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue)
+          else:
+            log.debug("keepalive....")
 
-        if event.is_set():
-          break
+          # Update the alarm we're using for the keepalive signal...
+          signal.alarm(35)
 
-    except (TimeoutException, rex.ReadTimeout, rex.ConnectTimeout):
-      stream = None
-      http_session.close()
-      http_session = None
-      log.warn("Resetting stream due to timeout...")
+          if event.is_set():
+            break
+          elif reset_date <= utcnow():
+            # Twitter requires that you not hold connections longer than 5 days, but we actually
+            # reset the stream daily just to make sure.
+            log.info("Resetting Twitter stream connection...")
+            break
+
+      except (TimeoutException, rex.ReadTimeout, rex.ConnectTimeout):
+        stream = None
+        http_session.close()
+        http_session = None
+        log.warn("Resetting stream due to timeout...")
 
 
 def collect_empty_tweets(event, session, tweet_id_queue):
