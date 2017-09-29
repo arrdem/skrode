@@ -4,19 +4,16 @@ BBDB schema
 
 import uuid
 
-from sqlalchemy import (CheckConstraint, Column, ForeignKey, Integer, Unicode,
-                        column, Boolean)
+from sqlalchemy import (Boolean, Column, CheckConstraint, ForeignKey, Unicode)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Query, relationship
+from sqlalchemy.orm import relationship
 from sqlalchemy.orm.session import object_session
-from sqlalchemy.sql import join, select
 from sqlalchemy.types import Enum
-from sqlalchemy_utils import ArrowType, UUIDType
 
 from detritus import cammel2snake as convert
-from detritus import unique_by
+from sqlalchemy_utils import ArrowType, UUIDType
 
 
 def get_or_create(session, model, **kwargs):
