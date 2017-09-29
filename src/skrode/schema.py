@@ -313,3 +313,21 @@ class PostDistribution(Base, UUIDed):
   rel = Column(POSTDIST, index=True)
 
   some_fk = CheckConstraint("post_id IS NOT NULL OR recipient_id IS NOT NULL")
+
+
+POSTINTR = Enum("like", "dislike", "share", "hide",
+                name="_post_interaction")
+
+
+class PostInteraction(Base, UUIDed):
+  """
+  Accounts can interact with Posts, which need not be on the same service.
+  """
+
+  account_id = Column(UUID, ForeignKey("account.id"), nullable=False)
+  account = relationship("Account")
+
+  post_id = Column(UUID, ForeignKey("post.id"), nullable=False)
+  post = relationship("Post")
+
+  rel = Column(POSTINTR, index=True)
