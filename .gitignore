@@ -1,6 +1,2 @@
-/**/__pycache__
-/**/*.egg-info
-/**/.cacheconfig.yml
-config.yml
 tunnel.sh
-service-config.yml
+*.yml

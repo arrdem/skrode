@@ -1,0 +1,10 @@
+python_binary(
+  name="keybase",
+  source="keybase.py",
+  dependencies=[
+    "//src/python:keybase",
+    "//src/python/skrode",
+    "//src/python/skrode/services:keybase",
+    "//src/python/skrode/services:twitter",
+  ],
+)
