@@ -291,14 +291,24 @@ def ensure_tombstones_empty(event, session):
                .filter(or_(Post.text != None,
                            Post.more != None))
 
-    post_count = q.count()
+    post_count = 0
     # Do this by hand since the .update() is being finnicky.
     for post in q.all():
-      post.text = None
-      post.more = None
-      session.add(post)
+      flag = False
+      if post.text:
+        post.text = None
+        flag = True
+
+      if post.more:
+        post.more = None
+        flag = True
+
+      if flag:
+        session.add(post)
+        post_count += 1
+
     session.commit()
-    
+
     log.info("Deleted %d posts", post_count)
 
-    time.sleep(5)
+    time.sleep(5 + 30 if post_count == 0 else 0)
