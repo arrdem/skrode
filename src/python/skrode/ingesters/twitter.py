@@ -127,7 +127,7 @@ def ingest_tweet_id(status_id, session, twitter_api, tweet_id_queue):
       session.flush()
 
 
-def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
+def _ingest_event(stream_event, session, twitter_api, tweet_id_queue, user_queue):
   """Helper function which does the individual inserts.
 
   Used to factor inserts like retweets and quotes which may contain their substructures directly,
@@ -151,7 +151,7 @@ def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
 
     if stream_event.get("event") in ["favorite", "unfavorite", "quoted_tweet"]:
       # We're ingesting a tweet here
-      _ingest_event(stream_event.get("target_object"), session, twitter_api, tweet_queue, user_queue)
+      _ingest_event(stream_event.get("target_object"), session, twitter_api, tweet_id_queue, user_queue)
 
   elif stream_event.get("delete"):
     # For compliance with the developer rules.
@@ -171,7 +171,7 @@ def _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue):
       # And by munge I just mean copy, because the twitter-python driver drops this on the floor
       stream_event["text"] = stream_event["extended_tweet"]["full_text"]
 
-    ingest_tweet(stream_event, session, twitter_api, tweet_queue)
+    ingest_tweet(stream_event, session, twitter_api, tweet_id_queue)
 
   elif "friends" in stream_event:
     for friend in stream_event.get("friends"):
@@ -188,7 +188,7 @@ class TimeoutException(Exception):
   """Dummy used for timeouts."""
 
 
-def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_kwargs):
+def user_stream(event, session, twitter_api, tweet_id_queue, user_queue, **stream_kwargs):
   """
   Ingest a Twitter stream, enqueuing tweets and users for eventual processing.
   """
@@ -213,7 +213,7 @@ def user_stream(event, session, twitter_api, tweet_queue, user_queue, **stream_k
         signal.alarm(35)
         for stream_event in stream:
           if stream_event:
-            _ingest_event(stream_event, session, twitter_api, tweet_queue, user_queue)
+            _ingest_event(stream_event, session, twitter_api, tweet_id_queue, user_queue)
           else:
             log.debug("keepalive....")
 
