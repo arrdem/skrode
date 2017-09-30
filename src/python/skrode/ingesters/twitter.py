@@ -271,7 +271,7 @@ def ensure_tombstones_empty(event, session):
     log.info("Deleted %d post relationships",
              session.query(PostRelationship)\
                     .filter(PostRelationship.id.in_(q.subquery()))\
-                    .delete(synchronize_session='fetch'))
+                    .delete(synchronize_session="fetch"))
 
     # Delete post distribution records where the post is deleted
     q = session.query(PostDistribution.id)\
@@ -282,7 +282,7 @@ def ensure_tombstones_empty(event, session):
     log.info("Deleted %d post distribution records",
              session.query(PostDistribution)\
                     .filter(PostDistribution.id.in_(q.subquery()))\
-                    .delete(synchronize_session='fetch'))
+                    .delete(synchronize_session="fetch"))
 
     # "Delete" posts where the post is deleted
     q = session.query(Post)\
