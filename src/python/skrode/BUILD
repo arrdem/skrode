@@ -10,7 +10,6 @@ python_library(
     "//src/python/skrode/redis",
 
     # 3rdparty deps
-    "//3rdparty/python:arrow",
     "//3rdparty/python:redis",
     "//3rdparty/python:sqlalchemy",
     "//3rdparty/python:psycopg2",
@@ -35,6 +34,7 @@ python_library(
     "//src/python:detritus",
 
     # 3rdparty deps
+    "//3rdparty/python:arrow",
     "//3rdparty/python:sqlalchemy",
     "//3rdparty/python:sqlalchemy-utils",
   ]
