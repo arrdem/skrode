@@ -5,15 +5,16 @@ Helpers for working with (merging/splitting) personas.
 from skrode import schema
 from skrode.schema import get_or_create
 from skrode.services import mk_insert_user, mk_service
-from skrode.telephones import insert_phone_number
 
-from sqlalchemy import asc, func, inspect, join, or_, select, union
+from sqlalchemy import asc, func, inspect, join
 
 
 null_service = mk_service("namesvc", [])
 
+
 def _nullsvc_fk(id):
   return "namesvc+user:%s" % id
+
 
 insert_user = mk_insert_user(null_service, _nullsvc_fk)
 
@@ -39,6 +40,15 @@ def insert_name(session, persona, name):
 
 
 def personas_by_name(session, name, one=False, exact=False, limit=None):
+  """Given a name, return personas such that any account matches the name query.
+
+  If `one` is True, return only one result.
+
+  If `limit` is not None, return only `limit` results.
+
+  If `exact` is True, return only personas which exactly match the given name string.
+  """
+
   _filter = lambda: schema.Name.name.contains(name) if not exact else schema.Name.name == name
   _score = lambda: func.abs(func.length(schema.Name.name) - len(name))
 
