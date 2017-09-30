@@ -8,9 +8,9 @@ import argparse
 import sys
 
 from keybase import Api, NoSuchUserException
-from skrode import schema, config, make_session_factory
-import skrode.services.twitter as bt
+from skrode import config, make_session_factory, schema
 from skrode.services.keybase import insert_keybase, insert_user
+import skrode.services.twitter as bt
 
 
 args = argparse.ArgumentParser()

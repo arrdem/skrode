@@ -5,16 +5,17 @@ A quick and shitty lobste.rs bbdb intake script.
 from __future__ import absolute_import, print_function
 
 import argparse
-import sys
 import random
+import sys
 import time
 
-from skrode import make_session_factory, twitter, config, schema
-from skrode.services.lobsters import insert_user, lobsters_external_id
-import lobsters
-
 import requests
+
+import lobsters
 import progressbar
+from skrode import config, make_session_factory, schema, twitter
+from skrode.services.lobsters import insert_user, lobsters_external_id
+
 
 factory = make_session_factory()
 

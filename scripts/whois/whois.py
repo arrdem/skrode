@@ -8,10 +8,10 @@ from __future__ import absolute_import, print_function
 import argparse
 import sys
 
+import jinja2
+
 from skrode.config import Config
 from skrode.personas import personas_by_name
-
-import jinja2
 
 
 def indent(str, width=2):

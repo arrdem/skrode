@@ -4,16 +4,17 @@ Helpers for dealing with lobste.rs
 
 from __future__ import absolute_import
 
-from skrode import schema
-from skrode.personas import merge_left
-from skrode.services import mk_service, mk_insert_user
-from skrode.twitter import insert_user as twitter_insert_user, insert_twitter
-from skrode.github import insert_user as gh_insert_user
-from skrode.reddit import insert_user as reddit_insert_user
-
 from lobsters import User
-from twitter.error import TwitterError
+from skrode import schema
+from skrode.github import insert_user as gh_insert_user
+from skrode.personas import merge_left
+from skrode.reddit import insert_user as reddit_insert_user
+from skrode.services import mk_insert_user, mk_service
+from skrode.twitter import insert_twitter
+from skrode.twitter import insert_user as twitter_insert_user
+
 from arrow import utcnow as now
+from twitter.error import TwitterError
 
 
 _lobsters_user_pattern = re.compile("(https?://)lobste.rs/(u|user)/(?P<username>[^/?]+)")

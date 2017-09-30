@@ -2,11 +2,12 @@
 A BBDB module for trying to find keybase identities related to a profile
 """
 
-from keybase import Api, Proof, NoSuchUserException
+from keybase import Api, NoSuchUserException, Proof
 from skrode import schema
-from skrode.services import mk_service, normalize_url, mk_insert_user
-from skrode.twitter import insert_twitter, insert_user as twitter_insert_user
 from skrode.personas import merge_left
+from skrode.services import mk_insert_user, mk_service, normalize_url
+from skrode.twitter import insert_twitter
+from skrode.twitter import insert_user as twitter_insert_user
 
 
 insert_keybase = mk_service("Keybase", ["http://keybase.io"])

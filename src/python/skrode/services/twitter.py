@@ -4,18 +4,26 @@ Bits for interacting with python-twitter
 
 from __future__ import absolute_import, print_function
 
+from datetime import datetime
 import re
 import traceback
-from datetime import datetime
 
-from skrode.schema import (Account, AccountRelationship, Name, Persona, Post,
-                           PostDistribution, PostRelationship, get_or_create)
+from skrode.schema import (
+  Account,
+  AccountRelationship,
+  Name,
+  Persona,
+  Post,
+  PostDistribution,
+  PostRelationship,
+  get_or_create
+)
 from skrode.services import mk_service
 
-from twitter.models import User
-import twitter
 from arrow import get as aget
 from arrow import utcnow as now
+import twitter
+from twitter.models import User
 
 
 _tw_user_pattern = re.compile("(https?://)twitter.com/(?P<username>[^/?]+)(/.+)?(&.+)?")

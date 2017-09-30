@@ -125,17 +125,17 @@ Example-ish configuration, note use of !skrode/* ctors, provided by skrode.confi
 import argparse
 from importlib import import_module
 import logging
+from multiprocessing import Process
+import os
+from queue import Empty, Queue
 import signal
 import sys
 import threading
 import time
-from multiprocessing import Process
-import os
-from queue import Queue, Empty
-
-from skrode.config import Config
 
 import colorlog
+from skrode.config import Config
+
 
 log = None
 

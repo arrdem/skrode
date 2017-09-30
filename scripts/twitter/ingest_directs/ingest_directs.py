@@ -8,13 +8,12 @@ from __future__ import absolute_import, print_function
 import argparse
 import sys
 
-from skrode.redis.workqueue import WorkQueue
-from skrode import schema, config, make_session_factory, personas, rds_for_config
-import skrode.services.twitter as bt
-
 import arrow
-from twitter.models import User
+from skrode import config, make_session_factory, personas, rds_for_config, schema
+from skrode.redis.workqueue import WorkQueue
+import skrode.services.twitter as bt
 from twitter.error import TwitterError
+from twitter.models import User
 
 
 args = argparse.ArgumentParser()

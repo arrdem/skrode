@@ -7,13 +7,13 @@ from __future__ import absolute_import
 import json
 import types
 
-import yaml
+from skrode.redis.workqueue import WorkQueue
+from skrode.sql import make_engine_session_factory
+from skrode.sql import make_uri as make_sql_uri
 
 import redis
-from skrode.redis.workqueue import WorkQueue
-from skrode.sql import make_uri as make_sql_uri
-from skrode.sql import make_engine_session_factory
 from twitter import Api
+import yaml
 
 
 def make_proxy_ctor(ctor, **more):

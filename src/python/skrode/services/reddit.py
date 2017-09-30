@@ -6,10 +6,9 @@ from __future__ import absolute_import
 
 import re
 
-from skrode.schema import (Persona, Human, Account, Name, AccountRelationship, Service,
-                         get_or_create)
-from skrode.services import mk_service, mk_insert_user
 from skrode.personas import merge_left
+from skrode.schema import Account, AccountRelationship, Human, Name, Persona, Service, get_or_create
+from skrode.services import mk_insert_user, mk_service
 
 from arrow import utcnow as now
 

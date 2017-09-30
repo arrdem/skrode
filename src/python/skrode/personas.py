@@ -2,12 +2,13 @@
 Helpers for working with (merging/splitting) personas.
 """
 
-from sqlalchemy import asc, func, inspect, join, or_, select, union
-
 from skrode import schema
 from skrode.schema import get_or_create
 from skrode.services import mk_insert_user, mk_service
 from skrode.telephones import insert_phone_number
+
+from sqlalchemy import asc, func, inspect, join, or_, select, union
+
 
 null_service = mk_service("namesvc", [])
 

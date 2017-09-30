@@ -2,8 +2,8 @@
 A simple durable queue backed by Redis.
 """
 
-from uuid import uuid4
 import logging
+from uuid import uuid4
 
 
 class WorkItem(object):

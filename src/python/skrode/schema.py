@@ -4,15 +4,15 @@ BBDB schema
 
 import uuid
 
-from sqlalchemy import (Boolean, Column, CheckConstraint, ForeignKey, Unicode)
+from detritus import camel2snake as convert
+
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Unicode
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.types import Enum
-
-from detritus import camel2snake as convert
 from sqlalchemy_utils import ArrowType, UUIDType
 
 

@@ -13,8 +13,8 @@ from skrode.schema import Account, Post, PostDistribution, PostRelationship
 from skrode.services import twitter as bt
 
 from arrow import utcnow
-from requests import exceptions as rex
 from requests import Session
+from requests import exceptions as rex
 from sqlalchemy import or_
 from twitter.error import TwitterError
 from twitter.models import Status, User

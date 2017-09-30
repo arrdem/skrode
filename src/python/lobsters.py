@@ -7,9 +7,9 @@ from __future__ import absolute_import, print_function
 from functools import lru_cache
 import re
 
-from skrode.services.twitter import _tw_user_pattern
 from skrode.services.github import _gh_user_pattern
 from skrode.services.reddit import _reddit_user_pattern
+from skrode.services.twitter import _tw_user_pattern
 
 from bs4 import BeautifulSoup
 import requests

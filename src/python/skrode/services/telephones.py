@@ -7,9 +7,9 @@ from __future__ import absolute_import
 from skrode import schema
 from skrode.services import mk_service
 
-from phonenumbers import (format_number as format_phonenumber,
-                          parse as parse_phonenumber,
-                          PhoneNumberFormat)
+from phonenumbers import PhoneNumberFormat
+from phonenumbers import format_number as format_phonenumber
+from phonenumbers import parse as parse_phonenumber
 
 
 insert_phone_service = mk_service("telephone", [])
