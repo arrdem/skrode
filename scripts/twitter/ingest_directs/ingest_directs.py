@@ -8,8 +8,7 @@ from __future__ import absolute_import, print_function
 import argparse
 import sys
 
-from skrode import config, make_session_factory, personas, rds_for_config, schema
-from skrode.redis.workqueue import WorkQueue
+from skrode import config, personas
 import skrode.services.twitter as bt
 
 import arrow
@@ -57,18 +56,19 @@ def main():
 
   # SQL
   ########################################
-  factory = make_session_factory(config=bbdb_config)
-  session = factory()
+  session = bbdb_config.get("sql")
 
   # Twitter
   ########################################
-  twitter_api = bt.api_for_config(bbdb_config, sleep_on_rate_limit=True)
+  twitter_api = bbdb_config.get("twitter")
 
   if opts.filename:
     ingest_users(twitter_api, session, [l.strip() for l in open(opts.filename).readlines()])
+
   else:
     if opts.user:
       user = twitter_api.GetUser(screen_name=opts.user)
+
     else:
       user = twitter_api.VerifyCredentials()
 
@@ -81,10 +81,12 @@ def main():
       when = arrow.utcnow()
 
       if opts.followers:
-        bt.crawl_followers(session, twitter_api, crawl_user, crawl_user_id=crawl_user_id, when=when)
+        bt.crawl_followers(session, twitter_api, crawl_user,
+                           crawl_user_id=crawl_user_id, when=when)
 
       if opts.friends:
-        bt.crawl_friends(session, twitter_api, crawl_user, crawl_user_id=crawl_user_id, when=when)
+        bt.crawl_friends(session, twitter_api, crawl_user,
+                         crawl_user_id=crawl_user_id, when=when)
 
     finally:
       session.flush()
