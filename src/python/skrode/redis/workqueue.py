@@ -2,7 +2,6 @@
 A simple durable queue backed by Redis.
 """
 
-import logging
 from uuid import uuid4
 
 
@@ -100,7 +99,6 @@ class WorkQueue(object):
     else:
       for _val in self._conn.lrange(self._key, 0, -1):
         if _val == value:
-          logging.info("Skipping duplicate work item...")
           return
       self._conn.lpush(self._key, value)
 
