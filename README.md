@@ -27,7 +27,9 @@ sources such as Atom feeds and email, aggregating user profiles, link data and f
 
 ## Architecture
 
-Skrode is a Postgres backed collection of Python tools written using the SQLAlchemy ORM toolkit.
+Skrode is a Postgres backed collection of Python tools written using the SQLAlchemy ORM toolkit,
+built via [pants](https://github.com/pantsbuild/pants) and deployed as a
+[pex](https://github.com/pantsbuild/pex).
 
 Skrode is primarily concerned with the concepts of Humans, Personas, Services and Accounts. A Human is
 a biological entity. Unfortunately, they're rather fluid things about which few assumptions are
@@ -52,44 +54,116 @@ rather than batch model.
 
 ![Database schema](./etc/dbschema.png)
 
-## Configuration
+## Project Structure
 
-Skrode and its affiliated CLI scripts all rely on a config file (by default `./config.yml`) which
-provides configuration values for the various required services.
-
-### Example config
-
-```yaml
----
-twitter:
-  api_key: ...
-  api_secret: ...
-  access_token: ...
-  access_secret: ...
-  timeout: 30
-
-sql:
-  dialect: postgresql+psycopg2
-  hostname: localhost
-  port: 5432
-  username: ...
-  password: ...
-  database: skrode
-
-redis:
-  hostname: localhost
-  port: 6379
-  db: 0
+```
+/src       - the source files for all libraries considered to be a part of this project
+/scripts   - the various entry points which depend on the source libraries
+/vendored  - vendored thirdparty libraries
+/3rdparty  - pants style 3rdparty dir for external dependencies
+/etc       - various miscellaneous files which are not program sources 
 ```
 
 ## Usage
 
-The `whois.py` script which honestly relates more to the traditional `finger` command, searches the
+Skrode consists of three components - the backing databases which are beyond the scope of this
+document, the data processing server(s) and the various CLI tools for interacting with stored data.
+
+### The Topology Server
+
+The `scripts/run_topology` program is the crown jewel of this project. It depends on the entirety of
+the `src/python/skrode` tree, and presents a generic framework for defining worker processes
+connected by work queues and consuming resources.
+
+For example, if we wanted to build a worker topology which connected to the Twitter streaming API,
+the configured SQL database and a Redis instance, establishing a small three-worker process topology
+for ingesting Twitter posts, as well as home timeline events such as deletes, follows, favorites
+replies and soforth we could do so as such
+
+```
+# Redis / sql / twitter config. See below for more.
+
+# The queue topology
+################################################################################
+twitter_user_id_queue:
+  &twitter_user_id_queue
+  !skrode/queue
+  conn: *redis
+  key: /queue/twitter/user_ids/ready
+  inflight: /queue/twitter/user_ids/inflight
+
+# Tweets can come in by ID
+tweet_id_queue:
+  &tweet_id_queue
+  !skrode/queue
+  conn: *redis
+  key: /queue/twitter/tweet_ids/ready
+  inflight: /queue/twitter/tweet_ids/inflight
+
+# Worker queue topology
+################################################################################
+twitter_home_timeline:
+  type: custom
+  target: skrode.ingesters.twitter:user_stream
+  # Nominal args
+  session: *sql
+  twitter_api: *twitter
+  user_queue: *twitter_user_id_queue
+  # GetUserStream kwargs
+  withuser: followings
+  stall_warnings: True
+  replies: all
+  include_keepalive: True
+
+twitter_user_ids:
+  type: map
+  target: skrode.ingesters.twitter:ingest_user
+  source: *twitter_user_id_queue
+  session: *sql
+  twitter_api: *twitter
+
+twitter_tweet_ids:
+  type: map
+  target: skrode.ingesters.twitter:ingest_tweet_id
+  source: *tweet_id_queue
+  session: *sql
+  twitter_api: *twitter
+  tweet_id_queue: *tweet_id_queue
+
+workers:
+  - twitter_home_timeline
+  - twitter_user_ids
+  - twitter_tweet_ids
+```
+
+The `run_topology` program loads up the specified configuration file, and looks at the `"workers"`
+key. For each listed worker, it creates a subprocess maintaining a mapping of subprocess PIDs to the
+type of worker it represents.
+
+Forked workers load the configuration file for themselves (connections don't tend to travel well
+across process boundaries) and select the key named by their worker type.
+
+This example will create three workers - one which consumes the authenticated user's home timeline,
+one which consumes users by ID as user IDs are found in the home timeline and one which consumes
+tweet IDs as they are found in the timeline. The home timeline worker is a `custom` worker, being it
+handles its own looping. The other workers are `map` workers, that is they are simple functions
+which need to be mapped over the given source queue.
+
+If a worker encounters an error and exits, the `run_topology` master process will detect the exit
+and respawn the failed worker. If the master process receives a SIGINT, it will signal the workers
+to gracefully exit and wait for them to do so.
+
+### CLI tools
+
+The `whois.pex` target which relates more to the traditional `finger` command, searches the
 configured database for personas with names matching the given pattern, and pretty-prints the
 results as mostly-YAML.
 
 ```
-$ ./whois.py "arrdem"
+$ ./pants -q binary scripts/whois
+...
+
+$ ./dist/whois.pex "arrdem"
 ---
 persona: f6dde3c9-aed5-4bf0-a2f3-e2411ae143b0
 names:
@@ -146,13 +220,55 @@ personas:
       ...
 ```
 
-The `ingest_twitter.py` script connects to the Twitter streaming API, the configured SQL database
-and a Redis instance, establishing a small three-worker process topology for ingesting Twitter
-posts, as well as home timeline events such as deletes, follows, favorites replies and soforth.
+The `scripts/twitter/ingest_directs` script connects to the Twitter 1.1 REST API and traverses
+the follower / following sets for the authenticated user, inserting user & profile records into the
+configured SQL database.
 
-The `crawl_$SERVICE.py` family of scripts traverse various services, trying to create or populate
+The `scripts/$SERVICE` family of scripts traverse various services, trying to create or populate
 Account records. The precise mechanics of the scripts varies, but most are written with respect to
 trying to relate Twitter accounts to other services.
+
+## Configuration
+
+Skrode and its affiliated CLI scripts all rely on a config file (by default `./config.yml`, `-c` and
+`--config` as CLI options) which provide configuration values for the various required services.
+
+### Example config
+
+```yaml
+---
+twitter:
+  &twitter
+  !skrode/twitter
+  consumer_key: ...
+  consumer_secret: ...
+  access_token_key: ...
+  access_token_secret: ...
+  timeout: 90
+  sleep_on_rate_limit: True
+
+sql:
+  &sql
+  !skrode/sql
+  dialect: postgresql+psycopg2
+  hostname: ...
+  port: ...
+  username: ...
+  password: ...
+  database: bbdb
+
+# The Redis database connections should go to
+redis:
+  &redis
+  !skrode/redis
+  host: localhost
+  port: 6379
+  db: 0
+```
+
+The type `skrode.config.Config` "understands" how to load a YAML file containing these `!skrode/`
+constructors, and exposes both via map-style `.get()` and via `__getattr__` the various keys in the
+loaded configuration file.
 
 ## License
 
