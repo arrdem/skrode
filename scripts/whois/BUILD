@@ -3,6 +3,7 @@ python_binary(
   source="whois.py",
   dependencies=[
     "//src/python/skrode",
+    "//src/python/skrode/services",
     "//3rdparty/python:Jinja2"
   ],
 )
