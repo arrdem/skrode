@@ -12,7 +12,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm.session import object_session
 from sqlalchemy.types import Enum
 
-from detritus import cammel2snake as convert
+from detritus import camel2snake as convert
 from sqlalchemy_utils import ArrowType, UUIDType
 
 

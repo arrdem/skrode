@@ -30,7 +30,7 @@ def twitter_external_user_id(fk):
 insert_twitter = mk_service("Twitter", ["http://twitter.com"])
 
 
-def insert_handle(session, user: User, persona=None):
+def insert_handle(session, user, persona=None):
   """
   Insert a Twitter Handle, creating a Persona for it if there isn't one.
 
@@ -58,7 +58,7 @@ def insert_handle(session, user: User, persona=None):
   return handle
 
 
-def insert_screen_name(session, user: User, handle=None, when=None):
+def insert_screen_name(session, user, handle=None, when=None):
   """Insert a screen name, attaching it to a handle."""
 
   if user.screen_name:
@@ -73,7 +73,7 @@ def insert_screen_name(session, user: User, handle=None, when=None):
     return screen_name
 
 
-def insert_display_name(session, user: User, handle=None, when=None):
+def insert_display_name(session, user, handle=None, when=None):
   """Insert a display name, attaching it to a handle."""
 
   if user.name:

@@ -32,7 +32,7 @@ def lobsters_external_id(user_or_id):
 _insert_user = mk_insert_user(insert_lobsters, lobsters_external_id)
 
 
-def insert_user(session, twitter_api, user: User, persona=None, when=None):
+def insert_user(session, twitter_api, user, persona=None, when=None):
   when = when or now()
 
   dbuser = _insert_user(session, user.name, persona=persona, when=when)
