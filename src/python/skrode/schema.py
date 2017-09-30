@@ -6,7 +6,7 @@ import uuid
 
 from detritus import camel2snake as convert
 
-from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, Unicode
+from sqlalchemy import Boolean, CheckConstraint, Column, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.ext.hybrid import hybrid_property
@@ -64,7 +64,7 @@ class Named(object):
 
   @declared_attr
   def name(cls):
-    return Column(Unicode)
+    return Column(String(convert_unicode=True))
 
 
 class Human(Base, UUIDed):
@@ -161,7 +161,7 @@ class ServiceURL(Base, UUIDed):
   service_id = Column(UUID, ForeignKey("service.id"), nullable=True)
   service = relationship("Service")
 
-  url = Column(Unicode, unique=True, index=True, nullable=False)
+  url = Column(String(convert_unicode=True), unique=True, index=True, nullable=False)
 
 
 class Account(Base, UUIDed):
@@ -172,7 +172,7 @@ class Account(Base, UUIDed):
   retaining a somewhat permanent name or internal identifier which may be exposed.
   """
 
-  external_id = Column(Unicode, nullable=False, unique=True, index=True)
+  external_id = Column(String(convert_unicode=True), nullable=False, unique=True, index=True)
 
   service_id = Column(UUID, ForeignKey("service.id"))
   service = relationship("Service")
@@ -255,7 +255,7 @@ class Post(Base, UUIDed):
   poster = relationship("Account")
 
   # The external ID for the thread or post
-  external_id = Column(Unicode, index=True, unique=True)
+  external_id = Column(String(convert_unicode=True), index=True, unique=True)
 
   # Posts that relate to this post
   children = relationship("Post",
@@ -268,7 +268,7 @@ class Post(Base, UUIDed):
   when = Column(ArrowType)
 
   # The post itself
-  text = Column(Unicode)
+  text = Column(String(convert_unicode=True))
 
   tombstone = Column(Boolean, default=False, index=True)
 
