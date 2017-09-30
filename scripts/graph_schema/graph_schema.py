@@ -8,6 +8,7 @@ import argparse
 import sys
 
 from skrode.schema import Base
+
 from sqlalchemy_schemadisplay import create_schema_graph
 
 

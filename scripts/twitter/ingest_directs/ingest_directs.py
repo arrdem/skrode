@@ -8,10 +8,11 @@ from __future__ import absolute_import, print_function
 import argparse
 import sys
 
-import arrow
 from skrode import config, make_session_factory, personas, rds_for_config, schema
 from skrode.redis.workqueue import WorkQueue
 import skrode.services.twitter as bt
+
+import arrow
 from twitter.error import TwitterError
 from twitter.models import User
 

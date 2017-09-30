@@ -9,12 +9,12 @@ import random
 import sys
 import time
 
-import requests
-
 import lobsters
-import progressbar
 from skrode import config, make_session_factory, schema, twitter
 from skrode.services.lobsters import insert_user, lobsters_external_id
+
+import progressbar
+import requests
 
 
 factory = make_session_factory()

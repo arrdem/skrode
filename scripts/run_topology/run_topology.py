@@ -133,8 +133,9 @@ import sys
 import threading
 import time
 
-import colorlog
 from skrode.config import Config
+
+import colorlog
 
 
 log = None
