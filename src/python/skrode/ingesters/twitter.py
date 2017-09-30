@@ -2,20 +2,23 @@
 A quick and dirty script to ingest my live Twitter feed.
 """
 
+from __future__ import absolute_import, print_function
+
 import json
+import logging
 import signal
 import time
-import logging
 
-from skrode import twitter as bt
-from skrode.schema import Account, Post, PostRelationship, PostDistribution
+from skrode.schema import Account, Post, PostDistribution, PostRelationship
+from skrode.services import twitter as bt
 
 from arrow import utcnow
-from twitter.models import Status, User
-from twitter.error import TwitterError
-from requests import Session
 from requests import exceptions as rex
+from requests import Session
 from sqlalchemy import or_
+from twitter.error import TwitterError
+from twitter.models import Status, User
+
 
 log = logging.getLogger(__name__)
 

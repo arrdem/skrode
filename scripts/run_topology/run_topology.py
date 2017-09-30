@@ -123,6 +123,7 @@ Example-ish configuration, note use of !skrode/* ctors, provided by skrode.confi
 """
 
 import argparse
+from importlib import import_module
 import logging
 import signal
 import sys
@@ -147,7 +148,7 @@ args.add_argument("-c", "--config",
 def _import(path):
   """Import a named member from a fully qualified module path."""
   module_name, member_name = path.split(":")
-  module = __import__(module_name)
+  module = import_module(module_name)
   return getattr(module, member_name)
 
 

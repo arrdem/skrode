@@ -2,11 +2,17 @@
 Helpers for working with services.
 """
 
-from urllib.parse import urlparse
+import sys
 
 from skrode import schema
 
 from arrow import utcnow as now
+
+# FIXME: Py3k EVIL HACK
+if sys.version >= (3, 0, 0):
+  from urllib.parse import urlparse
+else:
+  from urlparse import urlparse
 
 
 def normalize_url(url):
