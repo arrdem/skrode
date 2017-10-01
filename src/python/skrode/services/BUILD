@@ -19,8 +19,6 @@ python_library(
   sources=["github.py"],
   dependencies=[
     ":lib",
-
-    "//src/python/skrode:schema",
   ]
 )
 
