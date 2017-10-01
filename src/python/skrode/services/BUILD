@@ -11,8 +11,6 @@ python_library(
   sources=["facebook.py"],
   dependencies=[
     ":lib",
-
-    "//src/python/skrode:schema",
   ]
 )
 
