@@ -11,16 +11,27 @@ from skrode.redis.workqueue import WorkQueue
 from skrode.sql import make_engine_session_factory
 from skrode.sql import make_uri as make_sql_uri
 
+from imapclient import IMAPClient
+from lazy_object_proxy import Proxy
 import redis
 from twitter import Api
 import yaml
 
 
 def make_proxy_ctor(ctor, **more):
+  """
+  Wraps a constructor with keyword arguments and the machinery to load more from a YAML mapping.
+
+  Returns a function which will actually generate instances via the wrapped constructor.
+
+  Uses lazy_object_proxy.Proxy to delay construction as long as possible.
+
+  """
   def _from_yaml(loader, node):
     d = loader.construct_mapping(node)
     d.update(more)
-    return ctor(**d)
+
+    return Proxy(lambda: ctor(**d))
 
   return _from_yaml
 
@@ -28,6 +39,18 @@ def make_proxy_ctor(ctor, **more):
 def _make_sql_session(**kwargs):
   engine, sessionmaker = make_engine_session_factory(uri=make_sql_uri(**kwargs))
   return sessionmaker()
+
+
+def _make_imap_server(hostname=None,
+                      port=None,
+                      username=None,
+                      password=None,
+                      **kwargs):
+  server = IMAPClient(hostname, port,
+                      **kwargs)
+  if username and password:
+    server.login(username, password)
+  return server
 
 
 def _decode_and_load(text):
@@ -42,6 +65,7 @@ yaml.SafeLoader.add_constructor('!skrode/queue', make_proxy_ctor(WorkQueue,
                                                                  decoder=_decode_and_load))
 yaml.SafeLoader.add_constructor('!skrode/twitter', make_proxy_ctor(Api))
 yaml.SafeLoader.add_constructor('!skrode/sql', make_proxy_ctor(_make_sql_session))
+yaml.SafeLoader.add_constructor('!skrode/imap', make_proxy_ctor(_make_imap_server))
 
 
 class Config(object):

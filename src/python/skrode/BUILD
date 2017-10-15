@@ -10,10 +10,14 @@ python_library(
     "//src/python/skrode/redis",
 
     # 3rdparty deps
+    "//3rdparty/python:PyYAML",
+    "//3rdparty/python:imapclient",
+    "//3rdparty/python:psycopg2",
     "//3rdparty/python:redis",
     "//3rdparty/python:sqlalchemy",
-    "//3rdparty/python:psycopg2",
-    "//3rdparty/python:PyYAML",
+    "//3rdparty/python:lazy-object-proxy",
+
+    # Vendored deps
     "//vendored/python/twitter",
   ]
 )
