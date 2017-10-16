@@ -5,7 +5,10 @@ Primarily written because imapclient is crap (under-documented/under-exampled) a
 learning the mechanics of the protocol so no better time to write an excessively thin wrapper.
 """
 
+import logging as log
 import re
+
+from arrow import utcnow
 
 
 LIST_RESPONSE_PATTERN = re.compile(
@@ -17,7 +20,11 @@ QUOTED_PATTERN = re.compile(
 )
 
 FOLDER_STATUS_RESPONSE_PATTERN = re.compile(
-  r'(?P<name>((^"\S*)|"[^"]*")) \((?P<kvs>)\)'
+  r'(?P<name>(([^"]\S*)|"[^"]*")) \((?P<kvs>[^\)]*)\)'
+)
+
+FOLDER_STATUS_K_V_PATTERN = re.compile(
+  r'(?P<condition>\w+) (?P<value>\d+)'
 )
 
 
@@ -62,7 +69,12 @@ class IMAPFolder(object):
 
 
 class IMAPFolderStatus(object):
-  def __init__(self, client, folder, messages, recent, uidnext, uidvalidity, unseen):
+  def __init__(self, client, folder,
+               messages=None,
+               recent=None,
+               uidnext=None,
+               uidvalidity=None,
+               unseen=None):
     self._client = client
     self.folder = folder
     self.messages = messages
@@ -70,6 +82,9 @@ class IMAPFolderStatus(object):
     self.uidnext = uidnext
     self.uidvalidity = uidvalidity
     self.unseen = unseen
+
+  def __repr__(self):
+    return "<IMAPFolderStatus folder={0.folder}, messages={0.messages}, recent={0.recent}, uidnext={0.uidnext}, uidvalidity={0.uidvalidity}, unseen={0.unseen}>".format(self)  # noqa
 
 
 class IMAPWrapper(object):
@@ -81,6 +96,7 @@ class IMAPWrapper(object):
   def __init__(self, client):
     self._client = client
     self._folders = {}
+    self._folder_ttl = utcnow().replace(years=-1)
 
   def login(self, *args, **kwargs):
     """
@@ -140,7 +156,14 @@ class IMAPWrapper(object):
                                        (("(%s)" % " ".join(fields)) if fields
                                         else "(MESSAGES RECENT UIDNEXT UIDVALIDITY UNSEEN)"))
     if err == "OK":
-      return results
+      result = results[0].decode("utf-8")
+
+      match = re.match(FOLDER_STATUS_RESPONSE_PATTERN, result)
+      kvs = match.group("kvs")
+      return IMAPFolderStatus(self, self._folders[folder_name],
+                              **{m.group("condition").lower(): int(m.group("value"))
+                                 for m in re.finditer(FOLDER_STATUS_K_V_PATTERN, kvs)})
+
     else:
       raise IMAPException(results)
 
@@ -176,16 +199,21 @@ class IMAPWrapper(object):
     List out the folders in the connected server.
     """
 
-    err, results = self._client.list(*args, **kwargs)
-    if err == "OK":
-      for result in results:
-        result = result.decode("utf-8")
-        for match in re.finditer(LIST_RESPONSE_PATTERN, result):
-          flags, delimeter, name = match.groups()
-          folder = self._folders.get(name, IMAPFolder(self, name, flags, delimeter))
-          folder.flags = flags
-          folder.delimeter = delimeter
-          self._folders[name] = folder
-          yield folder
+    if utcnow() < self._folder_ttl.replace(seconds=5):
+      for v in self._folders.values():
+        yield v
+
     else:
-      raise IMAPException(results)
+      err, results = self._client.list(*args, **kwargs)
+      if err == "OK":
+        for result in results:
+          result = result.decode("utf-8")
+          for match in re.finditer(LIST_RESPONSE_PATTERN, result):
+            flags, delimeter, name = match.groups()
+            folder = self._folders.get(name, IMAPFolder(self, name, flags, delimeter))
+            folder.flags = flags
+            folder.delimeter = delimeter
+            self._folders[name] = folder
+            yield folder
+      else:
+        raise IMAPException(results)
