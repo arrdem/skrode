@@ -36,9 +36,9 @@ def main(opts):
     for folder in imap_server.list():
       with folder:
         log.info("%r", folder)
-        message_ids = folder.search(None, 'ALL')
-        log.info("%r", message_ids)
         log.info("%r", folder.status())
+        message_ids = folder.search(None, 'ALL')
+        log.info("%r", list(message_ids))
 
         _blob = None
         continue
