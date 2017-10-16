@@ -5,7 +5,6 @@ Primarily written because imapclient is crap (under-documented/under-exampled) a
 learning the mechanics of the protocol so no better time to write an excessively thin wrapper.
 """
 
-import logging as log
 import re
 
 
