@@ -4,6 +4,7 @@ The BBDB config
 
 from __future__ import absolute_import
 
+from imaplib import IMAP4, IMAP4_SSL
 import json
 import types
 
@@ -11,7 +12,6 @@ from skrode.redis.workqueue import WorkQueue
 from skrode.sql import make_engine_session_factory
 from skrode.sql import make_uri as make_sql_uri
 
-from imapclient import IMAPClient
 from lazy_object_proxy import Proxy
 import redis
 from twitter import Api
@@ -45,11 +45,13 @@ def _make_imap_server(hostname=None,
                       port=None,
                       username=None,
                       password=None,
-                      **kwargs):
-  server = IMAPClient(hostname, port,
-                      **kwargs)
+                      ssl=True):
+  ctor = IMAP4 if not ssl else IMAP4_SSL
+  server = ctor(hostname, port)
+
   if username and password:
     server.login(username, password)
+
   return server
 
 
@@ -59,13 +61,13 @@ def _decode_and_load(text):
   return json.loads(text)
 
 
-yaml.SafeLoader.add_constructor('!skrode/redis', make_proxy_ctor(redis.StrictRedis))
-yaml.SafeLoader.add_constructor('!skrode/queue', make_proxy_ctor(WorkQueue,
+yaml.SafeLoader.add_constructor("!skrode/redis", make_proxy_ctor(redis.StrictRedis))
+yaml.SafeLoader.add_constructor("!skrode/queue", make_proxy_ctor(WorkQueue,
                                                                  encoder=json.dumps,
                                                                  decoder=_decode_and_load))
-yaml.SafeLoader.add_constructor('!skrode/twitter', make_proxy_ctor(Api))
-yaml.SafeLoader.add_constructor('!skrode/sql', make_proxy_ctor(_make_sql_session))
-yaml.SafeLoader.add_constructor('!skrode/imap', make_proxy_ctor(_make_imap_server))
+yaml.SafeLoader.add_constructor("!skrode/twitter", make_proxy_ctor(Api))
+yaml.SafeLoader.add_constructor("!skrode/sql", make_proxy_ctor(_make_sql_session))
+yaml.SafeLoader.add_constructor("!skrode/imap", make_proxy_ctor(_make_imap_server))
 
 
 class Config(object):
