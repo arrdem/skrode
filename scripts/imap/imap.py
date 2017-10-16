@@ -35,16 +35,12 @@ def main(opts):
 
     for folder in imap_server.list():
       with folder:
-        log.info("%r", folder)
-        log.info("%r", folder.status())
-        message_ids = folder.search(None, 'ALL')
-        log.info("%r", list(message_ids))
+        message_ids = list(folder.search(None, 'ALL'))
 
+        # Find the shortest example message from each folder
         _blob = None
-        continue
-
         for message_id in message_ids:
-          err, data = imap_server.fetch(message_id, '(RFC822)')
+          err, data = imap_server.fetch(message_id, '(BODY[HEADER.FIELDS (MESSAGE-ID)])')
           blob = 'Message %s\n%s\n%s\n' % (message_id, err, data)
           if not _blob or len(_blob) > len(blob):
             _blob = blob

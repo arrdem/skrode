@@ -165,6 +165,7 @@ class IMAPWrapper(object):
       status = folder._status or IMAPFolderStatus(self, folder)
       folder._status = status
 
+      # Update whatever attributes we just loaded & return the updated status record.
       for m in re.finditer(FOLDER_STATUS_K_V_PATTERN, kvs):
         k = m.group("condition").lower()
         v = int(m.group("value"))
