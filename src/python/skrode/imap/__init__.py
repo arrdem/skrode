@@ -46,10 +46,10 @@ class IMAPFolder(object):
     self.delimeter = delimeter
     self._client = client
     self._recursion = 0
-    self.status = None
+    self._status = None
 
   def __repr__(self):
-    return "<IMAPFolder {0.name!r} status={0.status}>".format(self)
+    return "<IMAPFolder {0.name!r} status={0._status}>".format(self)
 
   def __enter__(self):
     self._client.select(self.name)
@@ -162,13 +162,13 @@ class IMAPWrapper(object):
       match = re.match(FOLDER_STATUS_RESPONSE_PATTERN, result)
       kvs = match.group("kvs")
       folder = self._folders.get(folder_name)
-      status = folder.status or IMAPFolderStatus(self, folder)
-      folder.status = status
+      status = folder._status or IMAPFolderStatus(self, folder)
+      folder._status = status
 
       for m in re.finditer(FOLDER_STATUS_K_V_PATTERN, kvs):
         k = m.group("condition").lower()
         v = int(m.group("value"))
-        setattr(folder, k, v)
+        setattr(status, k, v)
 
       return status
 
@@ -187,7 +187,9 @@ class IMAPWrapper(object):
           break
 
         for msgid in result.split(" "):
-          yield int(msgid)
+          if msgid:
+            yield int(msgid)
+
     else:
       raise IMAPException(results)
 
@@ -207,13 +209,13 @@ class IMAPWrapper(object):
     List out the folders in the connected server.
     """
 
-    if utcnow() < self._folder_ttl.replace(seconds=5):
-      for v in self._folders.values():
-        yield v
+    if utcnow() < self._folder_ttl:
+      return self._folders.values()
 
     else:
       err, results = self._client.list(*args, **kwargs)
       if err == "OK":
+        acc = []
         for result in results:
           result = result.decode("utf-8")
           for match in re.finditer(LIST_RESPONSE_PATTERN, result):
@@ -222,6 +224,9 @@ class IMAPWrapper(object):
             folder.flags = flags
             folder.delimeter = delimeter
             self._folders[name] = folder
-            yield folder
+            acc.append(folder)
+        self._folder_ttl = utcnow().replace(seconds=5)
+        return acc
+
       else:
         raise IMAPException(results)
