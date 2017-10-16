@@ -2,12 +2,17 @@
 Ingest mail from one or more configured IMAP accounts.
 """
 
+from __future__ import print_function
+
+import StringIO
+from traceback import format_exc
 import argparse
 import logging as log
+from email.message import Message
 import sys
 
 from skrode.config import Config
-
+from skrode.imap import IMAPWrapper
 
 args = argparse.ArgumentParser()
 args.add_argument("-c", "--config",
@@ -23,33 +28,35 @@ def main(opts):
   """
 
   config = Config(config=opts.config)
+  imap_server = None
 
-  imap_server = config.get(opts.account)
+  try:
+    imap_server = IMAPWrapper(config.get(opts.account))
 
-  folders = imap_server.list_folders()
+    for folder in imap_server.list():
+      with folder:
+        log.info("%r", folder)
+        message_ids = folder.search(None, 'ALL')
+        log.info("%r", message_ids)
+        log.info("%r", folder.status())
 
-  # This gives a sequence of folder descriptor structures.
-  # My inbox looks something like....
-  #
-  # [(('\\HasNoChildren',), '/', u'INBOX'),
-  #  (('\\HasNoChildren', '\\Archive'), '/', u'Archive'),
-  #  (('\\HasNoChildren', '\\Drafts'), '/', u'Drafts'),
-  #  (('\\HasChildren',), '/', u'Forums'),
-  #  (('\\HasNoChildren',), '/', u'Forums/Lobsters'),
-  #  ...
-  #  (('\HasNoChildren', '\\Junk'), '/', u'Junk Mail'),
-  #  (('\\HasNoChildren', '\\XNotes'), '/', u'Notes'),
-  #  (('\\HasNoChildren', '\\Sent'), '/', u'Sent Items'),
-  #  (('\\HasChildren',), '/', u'Services'),
-  #  (('\\HasNoChildren',), '/', u'Services/Github'),
-  #  ...
-  #  (('\\HasNoChildren',), '/', u'Starred'),
-  #  (('\\HasNoChildren', '\\Trash'), '/', u'Trash'),
-  #  ]
+        _blob = None
+        continue
 
-  for _flags, _delimeter, folder_name in folders:
-    imap_server.select_folder(folder_name)
-    
-  
+        for message_id in message_ids:
+          err, data = imap_server.fetch(message_id, '(RFC822)')
+          blob = 'Message %s\n%s\n%s\n' % (message_id, err, data)
+          if not _blob or len(_blob) > len(blob):
+            _blob = blob
+
+        log.info(_blob)
+  finally:
+    if imap_server:
+      imap_server.logout()
+
+
 if __name__ == "__main__":
+  _root_logger = log.getLogger()
+  _root_logger.setLevel(log.DEBUG)
+
   main(args.parse_args(sys.argv[1:]))
