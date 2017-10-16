@@ -40,15 +40,16 @@ class IMAPException(Exception):
 
 
 class IMAPFolder(object):
-  def __init__(self, client, name, flags, delimeter):
+  def __init__(self, client, name, flags, delimeter, status=None):
     self.name = name
     self.flags = flags
     self.delimeter = delimeter
     self._client = client
     self._recursion = 0
+    self.status = None
 
   def __repr__(self):
-    return "<IMAPFolder {0.name!r}>".format(self)
+    return "<IMAPFolder {0.name!r} status={0.status}>".format(self)
 
   def __enter__(self):
     self._client.select(self.name)
@@ -84,7 +85,7 @@ class IMAPFolderStatus(object):
     self.unseen = unseen
 
   def __repr__(self):
-    return "<IMAPFolderStatus folder={0.folder}, messages={0.messages}, recent={0.recent}, uidnext={0.uidnext}, uidvalidity={0.uidvalidity}, unseen={0.unseen}>".format(self)  # noqa
+    return "<IMAPFolderStatus messages={0.messages}, recent={0.recent}, uidnext={0.uidnext}, uidvalidity={0.uidvalidity}, unseen={0.unseen}>".format(self)  # noqa
 
 
 class IMAPWrapper(object):
@@ -160,9 +161,16 @@ class IMAPWrapper(object):
 
       match = re.match(FOLDER_STATUS_RESPONSE_PATTERN, result)
       kvs = match.group("kvs")
-      return IMAPFolderStatus(self, self._folders[folder_name],
-                              **{m.group("condition").lower(): int(m.group("value"))
-                                 for m in re.finditer(FOLDER_STATUS_K_V_PATTERN, kvs)})
+      folder = self._folders.get(folder_name)
+      status = folder.status or IMAPFolderStatus(self, folder)
+      folder.status = status
+
+      for m in re.finditer(FOLDER_STATUS_K_V_PATTERN, kvs):
+        k = m.group("condition").lower()
+        v = int(m.group("value"))
+        setattr(folder, k, v)
+
+      return status
 
     else:
       raise IMAPException(results)
