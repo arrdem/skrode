@@ -9,30 +9,10 @@ import re
 from arrow import utcnow
 
 
-LIST_RESPONSE_PATTERN = re.compile(
-  r'\((?P<flags>.*?)\) "(?P<delimiter>.*)" (?P<name>.*)'
-)
+IMAP_GRAMMAR = r"""
 
-QUOTED_PATTERN = re.compile(
-  r'^"[^"]*"$'
-)
 
-FOLDER_STATUS_RESPONSE_PATTERN = re.compile(
-  r'(?P<name>(([^"]\S*)|"[^"]*")) \((?P<kvs>[^\)]*)\)'
-)
-
-FOLDER_STATUS_K_V_PATTERN = re.compile(
-  r'(?P<condition>\w+) (?P<value>\d+)'
-)
-
-K_PATTERN = re.compile(r"(?P<msg_id>\d+)?\s\(?(?P<data_item>.*) \{\d+\}")
-
-def _ensure_quoted(text):
-  if not re.match(QUOTED_PATTERN, text):
-    return '"%s"' % text
-  else:
-    return text
-
+"""
 
 class IMAPException(Exception):
   pass

@@ -54,8 +54,8 @@ def message_to_text(message):
       return part()
 
   h = html2text.HTML2Text()
-  h.ignore_links = True
-  h.bypass_tables = True
+  h.ignore_links = False
+  h.ignore_tables = True
 
   for type, part in message_parts_and_types(message):
     if type == "text/html":
