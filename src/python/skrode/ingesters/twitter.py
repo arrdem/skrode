@@ -14,8 +14,7 @@ from skrode.services import twitter as bt
 
 from arrow import utcnow
 from requests import Session
-from requests import exceptions as rex
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from twitter.error import TwitterError
 from twitter.models import Status, User
 
@@ -50,10 +49,11 @@ def ingest_user_object(user, session):
 def have_tweet(session, id):
   """Get the Post for a Tweet ID, or None if it doesn't exist yet."""
   return session.query(Post)\
-                .filter(Post.external_id==bt.twitter_external_tweet_id(id),
-                        Post.when != None,
+                .filter(Post.external_id == bt.twitter_external_tweet_id(id),
                         Post.service != None,
-                        Post.text != None)\
+                        or_(and_(Post.when != None,
+                                 Post.text != None),
+                            Post.tombstone == True))\
                 .first()
 
 
