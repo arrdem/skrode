@@ -238,9 +238,9 @@ def user_stream(event, session, twitter_api, tweet_id_queue, user_queue, **strea
 def collect_empty_tweets(event, session, tweet_id_queue):
   while not event.is_set():
     for post_id, in session.query(Post.external_id)\
-                           .filter(Post.poster==None,
-                                   Post.service==bt.insert_twitter(session),
-                                   Post.tombstone==False)\
+                           .filter(Post.poster == None,
+                                   Post.service == bt.insert_twitter(session),
+                                   Post.tombstone == False)\
                            .all():
       tweet_id_queue.put(post_id.split(":")[1])
       if event.is_set():
