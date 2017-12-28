@@ -202,7 +202,8 @@ def user_stream(event, session, twitter_api, tweet_id_queue, user_queue, **strea
   http_session = None
   reset_date = None
   while not event.is_set():
-    if not http_session or reset_date and reset_date <= utcnow():
+    if not http_session or (reset_date and reset_date <= utcnow()):
+      log.warn("Resetting Twitter stream for user %s", user_queue)
       http_session = Session()
       reset_date = utcnow().replace(days=+1)
 
@@ -222,13 +223,18 @@ def user_stream(event, session, twitter_api, tweet_id_queue, user_queue, **strea
 
           if event.is_set():
             break
+
           elif reset_date <= utcnow():
             # Twitter requires that you not hold connections longer than 5 days, but we actually
             # reset the stream daily just to make sure.
             log.info("Resetting Twitter stream connection...")
             break
 
-      except (TimeoutException, rex.ReadTimeout, rex.ConnectTimeout):
+      except Exception as e:
+        log.error(e)
+        continue
+
+      finally:
         stream = None
         http_session.close()
         http_session = None
