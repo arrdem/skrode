@@ -248,7 +248,7 @@ def main(opts):
     restarts.put(worker_name)
 
   def _chld(sig, frame):
-    pid, status = os.waitpid(-1, os.WNOHANG|os.WUNTRACED|os.WCONTINUED)
+    pid, status = os.waitpid(-1, os.WNOHANG | os.WUNTRACED | os.WCONTINUED)
     if os.WIFCONTINUED(status) or os.WIFSTOPPED(status) or pid == 0:
       return
     elif os.WIFEXITED(status):
