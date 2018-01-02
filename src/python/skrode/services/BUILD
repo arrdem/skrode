@@ -7,6 +7,14 @@ python_library(
 )
 
 python_library(
+  name="email",
+  sources=["email.py"],
+  dependencies=[
+    ":lib",
+  ]
+)
+
+python_library(
   name="facebook",
   sources=["facebook.py"],
   dependencies=[
