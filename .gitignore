@@ -1,2 +1,6 @@
 tunnel.sh
 *.yml
+/**/*.pyc
+.cache/
+.pants.*
+dist/
