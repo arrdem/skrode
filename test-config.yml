@@ -1,0 +1,35 @@
+---
+# The Redis database connections should go to
+redis:
+  &redis
+  !skrode/redis
+  host: localhost
+  port: 6379
+  db: 0
+
+# The queue topology
+################################################################################
+random_queue:
+  &random_queue
+  !skrode/queue
+  conn: *redis
+  key: /queue/random_data/ready
+
+# Worker queue topology
+################################################################################
+random_data_source:
+  type: custom
+  target: skrode.ingesters.test:random
+  # Nominal args
+  queue: *random_queue
+  rate: 5
+
+random_data_mapper:
+  type: map
+  target: skrode.ingesters.test:do_print
+  source: *random_queue
+
+workers:
+  - random_data_source
+  - random_data_mapper
+  - random_data_mapper

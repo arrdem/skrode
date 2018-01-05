@@ -165,7 +165,7 @@ def worker(name):
 
 
 @worker("map")
-def map_worker(event, target, source, session, type=None, sleep=1, **kwargs):
+def map_worker(event, target, source, type=None, sleep=1, **kwargs):
   """A worker which just maps over the items on a queue.
 
   Tries to read an item from the work queue, processes it if there is one, otherwise waits 5s.
@@ -177,7 +177,7 @@ def map_worker(event, target, source, session, type=None, sleep=1, **kwargs):
     item = source.get()
     if item is not None:
       with item as item_contents:
-        target(item_contents, session=session, **kwargs)
+        target(item_contents, **kwargs)
     else:
       # FIXME: make this a configurable strategy
       time.sleep(sleep)
@@ -229,7 +229,7 @@ def worker(opts, target_name):
 def main(opts):
   handler = colorlog.StreamHandler()
   handler.setFormatter(
-    colorlog.ColoredFormatter("%(log_color)s %(asctime)s %(levelname)s %(process)d %(module)s %(funcName)s: %(message)s"))
+    colorlog.ColoredFormatter("%(log_color)s %(asctime)s %(levelname)s %(process)d] %(module)s %(funcName)s: %(message)s"))
 
   root_logger = logging.getLogger()
   root_logger.addHandler(handler)
