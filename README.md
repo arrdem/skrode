@@ -3,8 +3,6 @@
 
 Because not everything fits in my endocortex.
 
-## What
-
 **TL;DR** A database that records everything I read, everyone I talk to or interact with, and makes
 information such as this searchable to the best of my ability.
 
